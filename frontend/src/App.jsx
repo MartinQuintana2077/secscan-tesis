@@ -112,7 +112,7 @@ function Home() {
       }
 
       setTimeout(async () => {
-        const maxPolls = 60; // 60 * 3s = 3 minutos de timeout máximo
+        const maxPolls = 150; // 150 * 3s = 7.5 minutos de timeout máximo (necesario por escaneos -T2)
         let polls = 0;
         const checkResults = setInterval(async () => {
           polls++;
@@ -459,59 +459,75 @@ function Historial() {
   const [vulns, setVulns] = useState([]);
   const [topology, setTopology] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [vista, setVista] = useState(location.state?.defaultView || "lista");
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const token = await getToken();
-        let devs = [];
-        let vuls = [];
-        let topo = null;
-        
-        if (scanId) {
-          const [data, detailsData] = await Promise.all([
-            getScanDevices(scanId, token),
-            getScanDetails(scanId, token)
-          ]);
-          devs = data.devices || [];
-          if (detailsData.status === "ok" && detailsData.details) {
-             topo = detailsData.details.topology;
-          }
-        } else {
-          // Fallback al legacy
-          const devData = await getDevices(token);
-          devs = devData.dispositivos || [];
+  const loadData = useCallback(async () => {
+    try {
+      const token = await getToken();
+      let devs = [];
+      let vuls = [];
+      let topo = null;
+      let status = "completed";
+      
+      if (scanId) {
+        const [data, detailsData] = await Promise.all([
+          getScanDevices(scanId, token),
+          getScanDetails(scanId, token)
+        ]);
+        devs = data.devices || [];
+        if (detailsData.status === "ok" && detailsData.details) {
+           topo = detailsData.details.topology;
+           status = detailsData.details.status || "completed";
         }
+      } else {
+        // Fallback al legacy
+        const devData = await getDevices(token);
+        devs = devData.dispositivos || [];
+      }
 
-        // Extraer vulnerabilidades de los devices
-        devs.forEach(d => {
-          (d.puertos_abiertos || []).forEach(p => {
-            (p.vulnerabilidades || []).forEach(v => {
-              vuls.push({
-                ...v,
-                puerto: p.puerto,
-                servicio: p.servicio,
-                version: p.version,
-                ip: d.ip
-              });
+      // Extraer vulnerabilidades de los devices
+      devs.forEach(d => {
+        (d.puertos_abiertos || []).forEach(p => {
+          (p.vulnerabilidades || []).forEach(v => {
+            vuls.push({
+              ...v,
+              puerto: p.puerto,
+              servicio: p.servicio,
+              version: p.version,
+              ip: d.ip
             });
           });
         });
-        
-        vuls.sort((a, b) => (b.score || 0) - (a.score || 0));
+      });
+      
+      vuls.sort((a, b) => (b.score || 0) - (a.score || 0));
 
-        setDevices(devs);
-        setVulns(vuls);
-        setTopology(topo);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
+      setDevices(devs);
+      setVulns(vuls);
+      setTopology(topo);
+      setIsProcessing(status === "processing");
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
     }
-    loadData();
   }, [scanId, getToken]);
+
+  useEffect(() => {
+    loadData();
+    
+    // Polling si el escaneo an est en procesamiento (deep-scans corriendo en background)
+    let intervalId;
+    if (isProcessing) {
+      intervalId = setInterval(() => {
+        loadData();
+      }, 5000);
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [loadData, isProcessing]);
 
   const getScoreColor = (score) => {
     if (score >= 9.0) return "#ff4757"; // Crítico

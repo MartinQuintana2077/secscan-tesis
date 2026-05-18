@@ -7,6 +7,14 @@ function isPrivateIP(ip) {
   return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
 }
 function getSubnetPrefix(ip) { return ip ? ip.split(".").slice(0, 3).join(".") : ""; }
+
+function chunkArray(arr, size) {
+  if (!arr) return [];
+  return Array.from({ length: Math.ceil(arr.length / size) }, (v, i) =>
+    arr.slice(i * size, i * size + size)
+  );
+}
+
 function getScoreColor(s) {
   if (!s || s === 0) return "#00ff88";
   if (s >= 9.0) return "#ff3366";
@@ -21,7 +29,9 @@ function getRiskLabel(s) {
   if (s >= 4.0) return "MEDIO";
   return "BAJO";
 }
-export function getDeviceIcon(d) {
+export function getDeviceIcon(d, routerIp = null) {
+  if (routerIp && d.ip === routerIp) return "📡";
+
   const f = (d.fabricante || "").toLowerCase();
   const h = (d.hostname || "").toLowerCase();
   
@@ -78,15 +88,16 @@ function buildTree(devices, topology) {
     
     // Asignar prefijos a los hops
     const mainPrefix = mainHop ? getSubnetPrefix(mainHop.ip) : null;
-    
+    const routerIp = topology.router_principal_ip || mainHop?.ip || `${mainPrefix}.1`;
+
     const main = mainPrefix ? {
       prefix: mainPrefix,
       gateway: mainHop,
-      devices: bySubnet[mainPrefix] || [],
+      devices: (bySubnet[mainPrefix] || []).filter(d => d.ip !== routerIp),
       total: (bySubnet[mainPrefix] || []).length
     } : null;
 
-    const extensors = extHops.map((hop, i) => {
+    const extensorsRaw = extHops.map((hop, i) => {
       if (hop.tipo === "invisible") {
         return {
           prefix: `invisible-${i}`,
@@ -99,19 +110,49 @@ function buildTree(devices, topology) {
       return {
         prefix: p,
         gateway: hop,
-        devices: bySubnet[p] || [],
+        devices: (bySubnet[p] || []).filter(d => d.ip !== routerIp && d.ip !== hop?.ip),
         total: (bySubnet[p] || []).length
       };
     });
 
+    // Agrupar hops invisibles si hay 3 o más
+    const extensors = [];
+    let invisibleCount = 0;
+    for (let i = 0; i < extensorsRaw.length; i++) {
+      if (extensorsRaw[i].gateway?.tipo === "invisible") {
+        invisibleCount++;
+      } else {
+        if (invisibleCount > 0) {
+          if (invisibleCount >= 3) {
+            extensors.push({ prefix: `inv-group-${i}`, isGroup: true, count: invisibleCount, devices: [], total: 0 });
+          } else {
+            for (let j = 0; j < invisibleCount; j++) {
+              extensors.push({ prefix: `invisible-single-${i}-${j}`, gateway: { tipo: "invisible" }, devices: [], total: 0 });
+            }
+          }
+          invisibleCount = 0;
+        }
+        extensors.push(extensorsRaw[i]);
+      }
+    }
+    if (invisibleCount > 0) {
+      if (invisibleCount >= 3) {
+        extensors.push({ prefix: `inv-group-end`, isGroup: true, count: invisibleCount, devices: [], total: 0 });
+      } else {
+        for (let j = 0; j < invisibleCount; j++) {
+          extensors.push({ prefix: `invisible-single-end-${j}`, gateway: { tipo: "invisible" }, devices: [], total: 0 });
+        }
+      }
+    }
+
     // Subredes huérfanas (descubiertas por Nmap pero sin hop de traceroute)
-    const knownPrefixes = [mainPrefix, ...extensors.map(e => e.prefix)].filter(Boolean);
+    const knownPrefixes = [mainPrefix, ...extensorsRaw.map(e => e.prefix)].filter(Boolean);
     const orphanSubnets = Object.entries(bySubnet)
       .filter(([prefix]) => !knownPrefixes.includes(prefix))
       .map(([prefix, devs]) => ({
         prefix,
         gateway: devs.find(d => d.ip === `${prefix}.1`) || { ip: `${prefix}.1`, hostname: 'Gateway Inferido' },
-        devices: devs.filter(d => d.ip !== `${prefix}.1`),
+        devices: devs.filter(d => d.ip !== routerIp && d.ip !== `${prefix}.1`),
         total: devs.length,
       }));
 
@@ -206,8 +247,36 @@ function InvisibleCard() {
   );
 }
 
+function InvisibleGroupCard({ count }) {
+  const [expanded, setExpanded] = useState(false);
+  
+  if (expanded) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {Array.from({ length: count }).map((_, i) => (
+          <InvisibleCard key={i} />
+        ))}
+        <button onClick={(e) => { e.stopPropagation(); setExpanded(false); }} className="nt-badge" style={{ background: "rgba(255,255,255,0.1)", color: "#fff", cursor: "pointer", border: "none", margin: "0 auto" }}>
+          ▲ Colapsar
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="nt-card nt-card--invisible-group" onClick={() => setExpanded(true)} style={{ opacity: 0.8, border: "1px dashed rgba(255,255,255,0.3)", background: "rgba(30,41,59,0.8)", cursor: "pointer" }}>
+      <div className="nt-card-glow" style={{ background: "radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%)" }} />
+      <div className="nt-card-icon" style={{ filter: "grayscale(100%)", opacity: 0.9 }}>🔗</div>
+      <div className="nt-card-label" style={{ color: "#cbd5e1", fontWeight: "bold" }}>{count} Hops Invisibles</div>
+      <div className="nt-badge" style={{ background: "rgba(255,255,255,0.1)", color: "#cbd5e1", border: "1px solid rgba(255,255,255,0.2)" }}>
+        HACER CLIC PARA EXPANDIR
+      </div>
+    </div>
+  );
+}
+
 /* ─── CARD: DISPOSITIVO ─────────────────────────────────────── */
-function DeviceCard({ device, onVulnClick }) {
+function DeviceCard({ device, onVulnClick, routerIp }) {
   const [open, setOpen] = useState(false);
   const color = getScoreColor(device.max_score);
   const hasPorts = device.puertos_abiertos?.length > 0;
@@ -219,14 +288,11 @@ function DeviceCard({ device, onVulnClick }) {
         className="nt-card nt-card--device"
         style={{ "--risk-color": color, cursor: hasPorts ? "pointer" : "default" }}
         onClick={(e) => {
-          // Si damos click normal abre puertos.
-          // Si tiene vulns y damos click, tal vez redirigimos? 
-          // O solo abrir puertos, y los puertos vulnerables nos redirigen.
           if (hasPorts) setOpen(!open);
         }}
       >
         <div className="nt-card-glow" style={{ background: `radial-gradient(circle, ${color}22 0%, transparent 70%)` }} />
-        <div className="nt-card-icon">{getDeviceIcon(device)}</div>
+        <div className="nt-card-icon">{getDeviceIcon(device, routerIp)}</div>
         <div className="nt-card-ip">{device.ip}</div>
         {device.hostname && device.hostname !== "Caché Local ARP" && (
           <div className="nt-card-hostname">{device.hostname}</div>
@@ -448,9 +514,13 @@ export default function NetworkTree({ devices, topology, onVulnClick }) {
                   />
                 }
               >
-                {/* Dispositivos directos en la red principal */}
-                {main.devices.map((d, i) => (
-                  <OrgBranch key={d.ip || i} card={<DeviceCard device={d} onVulnClick={onVulnClick} />} />
+                {/* Dispositivos directos en la red principal (Agrupados de a 5) */}
+                {chunkArray(main.devices, 5).map((chunk, i) => (
+                  <OrgBranch key={`main-chunk-${i}`} card={
+                    <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: '16px', maxWidth: '600px' }}>
+                      {chunk.map(d => <DeviceCard key={d.ip} device={d} onVulnClick={onVulnClick} routerIp={topology?.router_principal_ip} />)}
+                    </div>
+                  } />
                 ))}
 
                 {/* Extensores con sus dispositivos */}
@@ -458,7 +528,9 @@ export default function NetworkTree({ devices, topology, onVulnClick }) {
                   <OrgBranch
                     key={ext.prefix}
                     card={
-                      ext.gateway?.tipo === "invisible" ? (
+                      ext.isGroup ? (
+                        <InvisibleGroupCard count={ext.count} />
+                      ) : ext.gateway?.tipo === "invisible" ? (
                         <InvisibleCard />
                       ) : (
                         <ExtensorCard
@@ -471,8 +543,13 @@ export default function NetworkTree({ devices, topology, onVulnClick }) {
                       )
                     }
                   >
-                    {ext.devices.map((d, j) => (
-                      <OrgBranch key={d.ip || j} card={<DeviceCard device={d} onVulnClick={onVulnClick} />} />
+                    {/* Dispositivos del extensor (Agrupados de a 5) */}
+                    {chunkArray(ext.devices, 5).map((chunk, j) => (
+                      <OrgBranch key={`ext-chunk-${j}`} card={
+                        <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: '16px', maxWidth: '600px' }}>
+                          {chunk.map(d => <DeviceCard key={d.ip} device={d} onVulnClick={onVulnClick} routerIp={topology?.router_principal_ip} />)}
+                        </div>
+                      } />
                     ))}
                   </OrgBranch>
                 ))}
