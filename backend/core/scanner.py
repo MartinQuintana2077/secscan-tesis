@@ -360,59 +360,97 @@ class ScannerEngine:
 
     def _intento_nmap_fallback(self, network_range: str, parent_ip: str) -> list:
         """
-        Intento 3: Ping sweep Nmap clásico + rescate de caché ARP local.
-        Mismo código de antes, ahora con campos discovery_method y parent_ip.
+        Intento 3: ARP cache local (siempre funciona sin admin) + Nmap como complemento.
+        En Windows, -PR (ARP raw socket) requiere admin y falla silenciosamente.
+        Por eso el ARP cache es la fuente primaria y Nmap el complemento.
         """
-        print(f"  [Fase 2 - Intento 3] Fallback Nmap Ping Sweep en {network_range}...")
-        self.nm.scan(hosts=network_range, arguments='-sn -PR -T2')
+        print(f"  [Fase 2 - Intento 3] Fallback ARP Cache + Nmap en {network_range}...")
 
         discovered = []
         found_ips  = set()
+        prefix = network_range.split('/')[0].rsplit('.', 1)[0] + '.'
+        print(f"  [ARP] Prefijo de subred buscado: '{prefix}'")
 
-        for host in self.nm.all_hosts():
-            if self.nm[host]['status']['state'] == 'up':
-                mac = "Desconocida"
-                if 'mac' in self.nm[host]['addresses']:
-                    mac = self.nm[host]['addresses']['mac']
-                if host == get_local_ip() and mac == "Desconocida":
-                    mac = get_local_mac()
-                discovered.append({
-                    "ip": host,
-                    "mac": mac,
-                    "hostname": self.nm[host].hostname(),
-                    "vendor": self.nm[host]['vendor'].get(mac, "") if mac != "Desconocida" else "",
-                    "discovery_method": "nmap_scan",
-                    "parent_ip": parent_ip
-                })
-                found_ips.add(host)
-
-        # Suplemento ARP cache
-        print("  Rescatando dispositivos silenciosos desde caché ARP local...")
+        # ── Fuente 1: ARP Cache local (no requiere admin, siempre disponible) ──
         try:
             arp_output = subprocess.check_output('arp -a', shell=True).decode('cp1252', errors='ignore')
-            prefix = network_range.split('/')[0].rsplit('.', 1)[0] + '.'
-            for line in arp_output.split('\n'):
+            arp_lines = arp_output.split('\n')
+            print(f"  [ARP] Total líneas en caché ARP: {len(arp_lines)}")
+
+            for line in arp_lines:
                 parts = line.split()
                 if len(parts) >= 2:
-                    ip_arp  = parts[0]
-                    mac_arp = parts[1].replace('-', ':').upper()
-                    if (ip_arp.startswith(prefix) and ip_arp not in found_ips
+                    ip_arp  = parts[0].strip()
+                    mac_arp = parts[1].strip().replace('-', ':').upper()
+                    if (ip_arp.startswith(prefix)
+                            and ip_arp not in found_ips
                             and not ip_arp.endswith('.255')
-                            and mac_arp != 'FF:FF:FF:FF:FF:FF'):
-                        print(f"  [ARP] Rescatado: {ip_arp}")
+                            and mac_arp not in ('FF:FF:FF:FF:FF:FF', 'FF-FF-FF-FF-FF-FF')
+                            and len(mac_arp) == 17):
+                        print(f"  [ARP] Encontrado: {ip_arp} ({mac_arp})")
+                        # Intentar resolver hostname via DNS inverso
+                        hostname = ""
+                        try:
+                            hostname = socket.gethostbyaddr(ip_arp)[0]
+                        except Exception:
+                            pass
                         discovered.append({
                             "ip": ip_arp,
                             "mac": mac_arp,
-                            "hostname": "Caché Local ARP",
+                            "hostname": hostname or "Caché Local ARP",
                             "vendor": "",
-                            "discovery_method": "nmap_scan",
+                            "discovery_method": "arp_cache",
                             "parent_ip": parent_ip
                         })
                         found_ips.add(ip_arp)
         except Exception as e:
-            print(f"  [ARP] Advertencia: {e}")
+            print(f"  [ARP] Error leyendo caché ARP: {e}")
 
+        print(f"  [ARP] Dispositivos encontrados en caché ARP: {len(discovered)}")
+
+        # ── Fuente 2: Nmap sin raw sockets (complemento, no requiere admin) ──
+        # -sn -PE: usa ICMP echo (no ARP raw), funciona sin admin en Windows.
+        # -T2: polite, seguro en redes institucionales.
+        try:
+            print(f"  [Nmap] Complementando con ICMP ping sweep (-sn -PE -T2)...")
+            self.nm.scan(hosts=network_range, arguments='-sn -PE -T2')
+
+            for host in self.nm.all_hosts():
+                if self.nm[host]['status']['state'] == 'up' and host not in found_ips:
+                    mac = "Desconocida"
+                    if 'mac' in self.nm[host]['addresses']:
+                        mac = self.nm[host]['addresses']['mac']
+                    if host == get_local_ip() and mac == "Desconocida":
+                        mac = get_local_mac()
+                    print(f"  [Nmap] Encontrado por ICMP: {host}")
+                    discovered.append({
+                        "ip": host,
+                        "mac": mac,
+                        "hostname": self.nm[host].hostname(),
+                        "vendor": self.nm[host]['vendor'].get(mac, "") if mac != "Desconocida" else "",
+                        "discovery_method": "nmap_scan",
+                        "parent_ip": parent_ip
+                    })
+                    found_ips.add(host)
+        except Exception as e:
+            print(f"  [Nmap] Error en ping sweep: {e}")
+
+        # Agregar la propia PC si no fue detectada
+        local_ip = get_local_ip()
+        if local_ip not in found_ips and local_ip.startswith(prefix):
+            print(f"  [LOCAL] Agregando PC local: {local_ip}")
+            discovered.append({
+                "ip": local_ip,
+                "mac": get_local_mac(),
+                "hostname": socket.gethostname(),
+                "vendor": "",
+                "discovery_method": "local",
+                "parent_ip": parent_ip
+            })
+
+        print(f"  [Fase 2] Total dispositivos descubiertos: {len(discovered)}")
         return discovered
+
 
     def discover_network(self, network_range: str,
                          router_principal_ip: str = None,
