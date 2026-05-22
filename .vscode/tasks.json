@@ -1,0 +1,48 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "1. Iniciar n8n",
+            "type": "shell",
+            "command": "npx n8n",
+            "presentation": {
+                "group": "secscan",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "2. Iniciar Backend",
+            "type": "shell",
+            "command": "cd backend && .\\venv\\Scripts\\uvicorn app:app --reload",
+            "presentation": {
+                "group": "secscan",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "3. Iniciar Frontend",
+            "type": "shell",
+            "command": "cd frontend && npm run dev",
+            "presentation": {
+                "group": "secscan",
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Iniciar SecScan Completo",
+            "dependsOn": [
+                "1. Iniciar n8n",
+                "2. Iniciar Backend",
+                "3. Iniciar Frontend"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            }
+        }
+    ]
+}
