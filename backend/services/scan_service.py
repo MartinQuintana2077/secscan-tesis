@@ -9,7 +9,18 @@ class ScanService:
         self.cve_client = CVEClient()
         self.db_service = DatabaseService()
 
-    def discover(self, target_ip: str):
+    def set_log_cb(self, cb):
+        from core.scanner import _thread_local
+        _thread_local.log_cb = cb
+
+    def _log(self, msg: str):
+        print(msg)
+        from core.scanner import _thread_local
+        cb = getattr(_thread_local, 'log_cb', None)
+        if cb:
+            cb(msg)
+
+    def discover(self, target_ip: str, passive: bool = False):
         # Limpieza de input
         ip_limpia = target_ip.replace('=', '').strip() if target_ip else ''
         
@@ -21,6 +32,62 @@ class ScanService:
 
         if not getattr(self.scanner, 'nmap_installed', True):
             return {"error": "NMAP_MISSING", "target": ip_real}
+
+        if passive:
+            self._log(f"🤫 [SCAN PASIVO] Iniciando descubrimiento pasivo e indetectable en {ip_real}...")
+            # Obtener topología pasiva a partir de ipconfig local
+            topology = self.scanner.fallback_to_gateway("Escaneo Pasivo habilitado. Descubrimiento silencioso extraído únicamente del sistema operativo.")
+            
+            # Descubrimiento estrictamente pasivo vía ARP caché del sistema operativo sin enviar ningún ping
+            prefix = ip_real.split('/')[0].rsplit('.', 1)[0] + '.'
+            dispositivos = []
+            found_ips = set()
+            try:
+                import subprocess, socket
+                arp_output = subprocess.check_output('arp -a', shell=True).decode('cp1252', errors='ignore')
+                for line in arp_output.split('\n'):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        ip_arp = parts[0].strip()
+                        mac_arp = parts[1].strip().replace('-', ':').upper()
+                        if (ip_arp.startswith(prefix)
+                                and ip_arp not in found_ips
+                                and not ip_arp.endswith('.255')
+                                and mac_arp not in ('FF:FF:FF:FF:FF:FF', 'FF-FF-FF-FF-FF-FF')
+                                and len(mac_arp) == 17):
+                            hostname = ""
+                            try:
+                                hostname = socket.gethostbyaddr(ip_arp)[0]
+                            except Exception:
+                                pass
+                            dispositivos.append({
+                                "ip": ip_arp,
+                                "mac": mac_arp,
+                                "hostname": hostname or "Caché ARP Pasiva",
+                                "vendor": "",
+                                "discovery_method": "arp_cache_passive",
+                                "parent_ip": ip_real.split('/')[0]
+                            })
+                            found_ips.add(ip_arp)
+            except Exception as e:
+                self._log(f"  [Scan Pasivo Error] {e}")
+                
+            # Agregar la propia PC si no está
+            from core.scanner import get_local_ip, get_local_mac
+            local_ip = get_local_ip()
+            if local_ip not in found_ips and local_ip.startswith(prefix):
+                dispositivos.append({
+                    "ip": local_ip,
+                    "mac": get_local_mac(),
+                    "hostname": socket.gethostname(),
+                    "vendor": "",
+                    "discovery_method": "local_passive",
+                    "parent_ip": ip_real.split('/')[0]
+                })
+
+            topology["advertencias"].append("Auditoría Pasiva: Este mapa se generó de forma pasiva leyendo la memoria ARP local sin inyectar ningún paquete a la red.")
+            topology["devices"] = dispositivos
+            return {"status": "ok", "dispositivos": dispositivos, "target": ip_real, "topology": topology, "passive": True}
 
         # Fase 1: Descubrir esqueleto de red con Traceroute
         topology = self.scanner.fase1_traceroute()
@@ -48,8 +115,9 @@ class ScanService:
         return {"status": "ok", "dispositivos": dispositivos, "target": ip_real, "topology": topology}
 
 
+
     def deep_scan(self, ip: str, user_id: str = "", scan_id: str = ""):
-        print(f"====== INICIANDO ESCANEO PARA: {ip} (user: {user_id}, scan: {scan_id}) ======")
+        self._log(f"====== INICIANDO ESCANEO PARA: {ip} (user: {user_id}, scan: {scan_id}) ======")
 
         puertos_info = self.scanner.scan_ports(ip)
         puertos = puertos_info.get("puertos_abiertos", [])

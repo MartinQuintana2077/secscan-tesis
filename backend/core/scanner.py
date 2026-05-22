@@ -4,6 +4,9 @@ import socket
 import re
 import ipaddress
 
+import threading
+_thread_local = threading.local()
+
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -31,6 +34,12 @@ class ScannerEngine:
         # python-nmap intentará buscar el ejecutable "nmap" en el PATH de Windows o en su ruta base
         self.reload_engine()
 
+    def _log(self, msg: str):
+        print(msg)
+        cb = getattr(_thread_local, 'log_cb', None)
+        if cb:
+            cb(msg)
+
     def reload_engine(self):
         try:
             self.nm = nmap.PortScanner(nmap_search_path=('nmap', r'C:\Program Files (x86)\Nmap\nmap.exe', r'C:\Program Files\Nmap\nmap.exe'))
@@ -39,7 +48,7 @@ class ScannerEngine:
         except nmap.PortScannerError:
             self.nmap_installed = False
             self.nm = None
-            print("Soft Error: Nmap no detectado. El sistema requerirá instalación autónoma.")
+            self._log("Soft Error: Nmap no detectado. El sistema requerirá instalación autónoma.")
             return False
 
     def _is_private_ip(self, ip_str: str) -> bool:
@@ -65,7 +74,7 @@ class ScannerEngine:
 
     def fallback_to_gateway(self, extra_warning=None) -> dict:
         """Obtiene la Puerta de Enlace Predeterminada de Windows como fallback si el traceroute falla."""
-        print("  [Fallback] Usando ipconfig para extraer el Default Gateway...")
+        self._log("  [Fallback] Usando ipconfig para extraer el Default Gateway...")
         advertencias = ["Se ejecutó Fallback de Puerta de Enlace debido a falta de permisos o bloqueo de red."]
         if extra_warning:
             advertencias.append(extra_warning)
@@ -88,7 +97,7 @@ class ScannerEngine:
                             "advertencias": advertencias
                         }
         except Exception as e:
-            print(f"  [Fallback Error] No se pudo obtener gateway: {e}")
+            self._log(f"  [Fallback Error] No se pudo obtener gateway: {e}")
             
         return {"hops_privados": [], "router_isp": None, "advertencias": advertencias}
 
@@ -99,7 +108,7 @@ class ScannerEngine:
             - hops_privados: Nodos internos (ej. Extensores, Router Principal).
             - router_isp: Primer salto con IP pública (Internet).
         """
-        print("[FASE 1] Iniciando Nmap Traceroute hacia 8.8.8.8 para descubrir la columna vertebral...")
+        self._log("[FASE 1] Iniciando Nmap Traceroute hacia 8.8.8.8 para descubrir la columna vertebral...")
         hops_privados = []
         router_isp = None
         advertencias = []
@@ -114,14 +123,14 @@ class ScannerEngine:
             
             # Revisar si falló por permisos (stderr tiene contenido de error)
             if result.returncode != 0 and result.stderr:
-                print(f"  [Nmap Error] Falta de permisos o error: {result.stderr.strip()}")
+                self._log(f"  [Nmap Error] Falta de permisos o error: {result.stderr.strip()}")
                 return self.fallback_to_gateway()
                 
             output = result.stdout
             
             # Buscar el inicio del bloque TRACEROUTE
             if "TRACEROUTE" not in output:
-                print("  [Nmap Error] El bloque TRACEROUTE no se encontró en la salida.")
+                self._log("  [Nmap Error] El bloque TRACEROUTE no se encontró en la salida.")
                 return self.fallback_to_gateway("El comando Nmap falló o no retornó un bloque TRACEROUTE válido.")
                 
             traceroute_block = output.split("TRACEROUTE")[1]
@@ -147,7 +156,7 @@ class ScannerEngine:
                             })
                             if "Se detectaron saltos invisibles o bloqueos de ICMP en la ruta." not in advertencias:
                                 advertencias.append("Se detectaron saltos invisibles o bloqueos de ICMP en la ruta.")
-                            print("  -> [HOP INVISIBLE] (ICMP Bloqueado / Tiempo Agotado)")
+                            self._log("  -> [HOP INVISIBLE] (ICMP Bloqueado / Tiempo Agotado)")
                     except Exception:
                         pass
                     continue
@@ -162,7 +171,7 @@ class ScannerEngine:
                     })
                     if "Se detectaron saltos invisibles o bloqueos de ICMP en la ruta." not in advertencias:
                         advertencias.append("Se detectaron saltos invisibles o bloqueos de ICMP en la ruta.")
-                    print("  -> [HOP INVISIBLE] (ICMP Bloqueado / Tiempo Agotado)")
+                    self._log("  -> [HOP INVISIBLE] (ICMP Bloqueado / Tiempo Agotado)")
                     continue
                     
                 # Extraemos IPs en la línea
@@ -193,17 +202,17 @@ class ScannerEngine:
                             "hostname": "Extensor / Router Intermedio",
                             "nat_habilitado": nat_habilitado
                         })
-                        print(f"  -> [HOP PRIVADO] {ip} (MAC: {mac}) {'[NAT DETECTADO]' if nat_habilitado else ''}")
+                        self._log(f"  -> [HOP PRIVADO] {ip} (MAC: {mac}) {'[NAT DETECTADO]' if nat_habilitado else ''}")
                     else:
                         router_isp = {"ip": ip, "tipo": "router_isp", "hostname": "ISP Público"}
-                        print(f"  -> [HOP PÚBLICO - ISP] {ip} (Fin de la red local)")
+                        self._log(f"  -> [HOP PÚBLICO - ISP] {ip} (Fin de la red local)")
                         break
                         
         except subprocess.TimeoutExpired:
-            print("  [Traceroute] Timeout de 30s expirado.")
+            self._log("  [Traceroute] Timeout de 30s expirado.")
             return self.fallback_to_gateway()
         except Exception as e:
-            print(f"  [Traceroute] Excepción crítica: {e}")
+            self._log(f"  [Traceroute] Excepción crítica: {e}")
             return self.fallback_to_gateway()
             
         # Sprint 3: Fallback si por alguna razón la lista quedó vacía pero Nmap corrió
@@ -272,7 +281,7 @@ class ScannerEngine:
         Consulta la tabla ARP (ipNetToMediaPhysAddress) con OID '1.3.6.1.2.1.4.22.1.2'.
         Timeout estricto de 3 s; si no responde, añade advertencia y retorna [].
         """
-        print(f"  [Fase 2 - Intento 1] SNMP Nativo (pysnmp) sobre {target_ip}...")
+        self._log(f"  [Fase 2 - Intento 1] SNMP Nativo (pysnmp) sobre {target_ip}...")
         
         try:
             from pysnmp.hlapi import (
@@ -282,7 +291,7 @@ class ScannerEngine:
         except ImportError as e:
             msg = f"Librería pysnmp no instalada. Fallando al fallback. Error: {e}"
             advertencias.append(msg)
-            print(f"  [SNMP Error] {msg}")
+            self._log(f"  [SNMP Error] {msg}")
             return []
 
         devices = []
@@ -290,7 +299,7 @@ class ScannerEngine:
         communities = ["public", "private"]
         
         for community in communities:
-            print(f"    -> Probando comunidad '{community}'...")
+            self._log(f"    -> Probando comunidad '{community}'...")
             try:
                 # OID: ipNetToMediaPhysAddress (1.3.6.1.2.1.4.22.1.2)
                 # Formato devuelto: 1.3.6.1.2.1.4.22.1.2.[ifIndex].[IP] = [MAC en bytes]
@@ -344,15 +353,15 @@ class ScannerEngine:
                                     found_ips.add(candidate_ip)
                 
                 if devices:
-                    print(f"  [SNMP] Éxito: {len(devices)} dispositivos extraídos con comunidad '{community}'.")
+                    self._log(f"  [SNMP] Éxito: {len(devices)} dispositivos extraídos con comunidad '{community}'.")
                     return devices
                     
             except Exception as e:
-                print(f"    [SNMP] Error con comunidad '{community}': {e}")
+                self._log(f"    [SNMP] Error con comunidad '{community}': {e}")
                 
         msg = f"SNMP sin respuesta o bloqueado en {target_ip} con comunidades comunes."
         advertencias.append(msg)
-        print(f"  [SNMP] {msg}")
+        self._log(f"  [SNMP] {msg}")
         return []
 
     def _intento_dhcp_server(self, network_range: str, advertencias: list) -> list:
@@ -360,7 +369,7 @@ class ScannerEngine:
         Intento 2: Buscar servidor DHCP (UDP 67) en la subred y consultar SNMP sobre él.
         Timeout: 10 s para el barrido DHCP + 10 s para el SNMP.
         """
-        print(f"  [Fase 2 - Intento 2] Buscando servidor DHCP en {network_range}...")
+        self._log(f"  [Fase 2 - Intento 2] Buscando servidor DHCP en {network_range}...")
         try:
             dhcp_result = subprocess.run(
                 ['nmap', '-sU', '-p', '67', '-T2', network_range],
@@ -385,10 +394,10 @@ class ScannerEngine:
             if not dhcp_server_ip:
                 msg = f"No se encontró servidor DHCP activo en {network_range}."
                 advertencias.append(msg)
-                print(f"  [DHCP] {msg}")
+                self._log(f"  [DHCP] {msg}")
                 return []
 
-            print(f"  [DHCP] Servidor DHCP encontrado en {dhcp_server_ip}. Consultando SNMP...")
+            self._log(f"  [DHCP] Servidor DHCP encontrado en {dhcp_server_ip}. Consultando SNMP...")
             devices = self._intento_snmp(dhcp_server_ip, network_range, advertencias)
             # Reemplazar method tag
             for d in devices:
@@ -398,12 +407,12 @@ class ScannerEngine:
         except subprocess.TimeoutExpired:
             msg = f"Timeout buscando servidor DHCP en {network_range}."
             advertencias.append(msg)
-            print(f"  [DHCP] {msg}")
+            self._log(f"  [DHCP] {msg}")
             return []
         except Exception as e:
             msg = f"Error buscando servidor DHCP: {e}"
             advertencias.append(msg)
-            print(f"  [DHCP] {msg}")
+            self._log(f"  [DHCP] {msg}")
             return []
 
     def _intento_nmap_fallback(self, network_range: str, parent_ip: str) -> list:
@@ -412,18 +421,18 @@ class ScannerEngine:
         En Windows, -PR (ARP raw socket) requiere admin y falla silenciosamente.
         Por eso el ARP cache es la fuente primaria y Nmap el complemento.
         """
-        print(f"  [Fase 2 - Intento 3] Fallback ARP Cache + Nmap en {network_range}...")
+        self._log(f"  [Fase 2 - Intento 3] Fallback ARP Cache + Nmap en {network_range}...")
 
         discovered = []
         found_ips  = set()
         prefix = network_range.split('/')[0].rsplit('.', 1)[0] + '.'
-        print(f"  [ARP] Prefijo de subred buscado: '{prefix}'")
+        self._log(f"  [ARP] Prefijo de subred buscado: '{prefix}'")
 
         # ── Fuente 1: ARP Cache local (no requiere admin, siempre disponible) ──
         try:
             arp_output = subprocess.check_output('arp -a', shell=True).decode('cp1252', errors='ignore')
             arp_lines = arp_output.split('\n')
-            print(f"  [ARP] Total líneas en caché ARP: {len(arp_lines)}")
+            self._log(f"  [ARP] Total líneas en caché ARP: {len(arp_lines)}")
 
             for line in arp_lines:
                 parts = line.split()
@@ -435,7 +444,7 @@ class ScannerEngine:
                             and not ip_arp.endswith('.255')
                             and mac_arp not in ('FF:FF:FF:FF:FF:FF', 'FF-FF-FF-FF-FF-FF')
                             and len(mac_arp) == 17):
-                        print(f"  [ARP] Encontrado: {ip_arp} ({mac_arp})")
+                        self._log(f"  [ARP] Encontrado: {ip_arp} ({mac_arp})")
                         # Intentar resolver hostname via DNS inverso
                         hostname = ""
                         try:
@@ -452,9 +461,9 @@ class ScannerEngine:
                         })
                         found_ips.add(ip_arp)
         except Exception as e:
-            print(f"  [ARP] Error leyendo caché ARP: {e}")
+            self._log(f"  [ARP] Error leyendo caché ARP: {e}")
 
-        print(f"  [ARP] Dispositivos encontrados en caché ARP: {len(discovered)}")
+        self._log(f"  [ARP] Dispositivos encontrados en caché ARP: {len(discovered)}")
 
         # ── Fuente 2: Nmap sin raw sockets (descubrimiento híbrido TCP/UDP/ICMP) ──
         # -sn -PE: usa ICMP echo.
@@ -463,7 +472,7 @@ class ScannerEngine:
         # -PU53,137,161: UDP ping (bypasses UDP-only blocks / targets NetBIOS, DNS, SNMP).
         # -T3: Velocidad normal y robusta.
         try:
-            print(f"  [Nmap] Complementando con descubrimiento híbrido TCP/UDP/ICMP...")
+            self._log(f"  [Nmap] Complementando con descubrimiento híbrido TCP/UDP/ICMP...")
             self.nm.scan(
                 hosts=network_range, 
                 arguments='-sn -PE -PS21,22,23,80,139,443,445,9100,8080 -PA21,22,23,80,139,443,445,9100,8080 -PU53,137,161 -T3'
@@ -476,7 +485,7 @@ class ScannerEngine:
                         mac = self.nm[host]['addresses']['mac']
                     if host == get_local_ip() and mac == "Desconocida":
                         mac = get_local_mac()
-                    print(f"  [Nmap] Encontrado por descubrimiento híbrido: {host}")
+                    self._log(f"  [Nmap] Encontrado por descubrimiento híbrido: {host}")
                     discovered.append({
                         "ip": host,
                         "mac": mac,
@@ -487,12 +496,12 @@ class ScannerEngine:
                     })
                     found_ips.add(host)
         except Exception as e:
-            print(f"  [Nmap] Error en descubrimiento híbrido: {e}")
+            self._log(f"  [Nmap] Error en descubrimiento híbrido: {e}")
 
         # Agregar la propia PC si no fue detectada
         local_ip = get_local_ip()
         if local_ip not in found_ips and local_ip.startswith(prefix):
-            print(f"  [LOCAL] Agregando PC local: {local_ip}")
+            self._log(f"  [LOCAL] Agregando PC local: {local_ip}")
             discovered.append({
                 "ip": local_ip,
                 "mac": get_local_mac(),
@@ -502,7 +511,7 @@ class ScannerEngine:
                 "parent_ip": parent_ip
             })
 
-        print(f"  [Fase 2] Total dispositivos descubiertos: {len(discovered)}")
+        self._log(f"  [Fase 2] Total dispositivos descubiertos: {len(discovered)}")
         return discovered
 
 
@@ -519,7 +528,7 @@ class ScannerEngine:
             advertencias = []
         parent_ip = router_principal_ip or network_range.split('/')[0]
 
-        print(f"[FASE 2] Iniciando descubrimiento en cascada. Red: {network_range} | Router: {parent_ip}")
+        self._log(f"[FASE 2] Iniciando descubrimiento en cascada. Red: {network_range} | Router: {parent_ip}")
 
         # ── Intento 1: SNMP sobre el router principal ──────────────────────────
         snmp_exitosa = False
@@ -545,7 +554,7 @@ class ScannerEngine:
         if es_subred_externa and not snmp_exitosa:
             msg = f"Frontera Opaca Detectada en {parent_ip}: La subred externa {network_range} está aislada por NAT/Firewall y SNMP está inactivo. Abortando escaneo en esta rama para evitar demoras y falsos negativos."
             advertencias.append(msg)
-            print(f"  [ALERTA] {msg}")
+            self._log(f"  [ALERTA] {msg}")
             return []
 
         # ── Intento 2: Buscar servidor DHCP y consultar SNMP sobre él ─────────
@@ -562,7 +571,7 @@ class ScannerEngine:
         """
         Escaneo profundo (Opción A): Busca puertos abiertos y descubre qué programas corren adentro.
         """
-        print(f"Iniciando escaneo profundo en: {ip_target}...")
+        self._log(f"Iniciando escaneo profundo en: {ip_target}...")
         
         # -sV: descubrir la versión exacta del servicio.
         # -T3: velocidad normal, equilibrio entre rapidez y evasión de bloqueos.
@@ -606,7 +615,7 @@ class ScannerEngine:
         if not hostname:
             try:
                 hostname = socket.gethostbyaddr(ip_target)[0]
-                print(f"[DNS] Hostname resuelto para {ip_target}: {hostname}")
+                self._log(f"[DNS] Hostname resuelto para {ip_target}: {hostname}")
             except Exception:
                 pass
         
@@ -621,7 +630,7 @@ class ScannerEngine:
                     # Buscamos la línea con <00> que es el nombre del equipo
                     if '<00>' in line and 'UNIQUE' in line:
                         hostname = line.strip().split()[0].strip()
-                        print(f"[NetBIOS] Hostname resuelto para {ip_target}: {hostname}")
+                        self._log(f"[NetBIOS] Hostname resuelto para {ip_target}: {hostname}")
                         break
             except Exception:
                 pass

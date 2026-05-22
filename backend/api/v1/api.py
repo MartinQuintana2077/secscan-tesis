@@ -89,7 +89,9 @@ def n8n_discover(request: dict):
     _db_service.clear_vulnerabilities(uid_real)
     
     # 6. Ejecutar escaneo
+    _scan_service.set_log_cb(lambda msg: _db_service.append_scan_log(uid_real, scan_id, msg))
     result = _scan_service.discover(target_ip)
+    _scan_service.set_log_cb(None)
     if result.get("error") == "NMAP_MISSING":
         return {"status": "error", "code": "NMAP_MISSING", "dispositivos": []}
     
@@ -149,7 +151,9 @@ def n8n_deep_scan(ip: str, request: dict = None):
         pass
     
     # 5. Ejecutar deep-scan (usando uid REAL y scan_id)
+    _scan_service.set_log_cb(lambda msg: _db_service.append_scan_log(uid_real, scan_id, msg))
     detalle = _scan_service.deep_scan(ip, uid_real, scan_id)
+    _scan_service.set_log_cb(None)
     
     # 6. Marcar como procesado (idempotencia por IP) e incrementar vulnerabilidades
     if scan_id:

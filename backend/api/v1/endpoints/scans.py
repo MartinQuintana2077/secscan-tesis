@@ -58,6 +58,8 @@ def _run_scan_bg(user_id: str, scan_id: str, target_ip: str, passive: bool):
     import concurrent.futures
     import datetime
     
+    scan_service.set_log_cb(lambda msg: db_service.append_scan_log(user_id, scan_id, msg))
+    
     print(f"[BFF-BG] Modo directo para usuario: {user_id} (Pasivo: {passive})")
     db_service.append_scan_log(user_id, scan_id, f"Iniciando auditoría de red (Pasivo: {passive}) en {target_ip}...")
     
@@ -137,6 +139,7 @@ def _run_scan_bg(user_id: str, scan_id: str, target_ip: str, passive: bool):
     
     db_service.append_scan_log(user_id, scan_id, f"✅ Auditoría finalizada con éxito. {escaneados} equipos procesados.")
     print(f"[BFF-BG] Escaneo COMPLETADO. Total: {escaneados}")
+    scan_service.set_log_cb(None)
 
 
 @router.post("/trigger-scan")
