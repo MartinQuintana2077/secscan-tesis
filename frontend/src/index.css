@@ -1740,8 +1740,9 @@ ul { list-style: none; padding: 0; margin: 0; }
 
 /* Zoomable canvas */
 .nt-canvas {
-  display: inline-block;
-  min-width: max-content;
+  display: block;
+  margin: 0 auto;
+  width: max-content;
   will-change: transform;
   transform-origin: top center;
 }

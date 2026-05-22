@@ -277,7 +277,7 @@ function Home() {
                 setScanning(false);
                 setBgTaskActive(false);
                 setTimeout(() => {
-                  navigate(`/history/${scanId}`, { state: { defaultView: "consola" } });
+                  navigate(`/history/${scanId}`, { state: { defaultView: "arbol" } });
                 }, 1000); // Pequeño delay para ver el último log de éxito
               }
             }
@@ -286,7 +286,7 @@ function Home() {
               clearInterval(checkResults);
               setScanning(false);
               setBgTaskActive(false);
-              navigate(`/history/${scanId}`, { state: { defaultView: "consola" } });
+              navigate(`/history/${scanId}`, { state: { defaultView: "arbol" } });
             }
           } catch (e) {
              console.error("Error polling", e);
