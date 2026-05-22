@@ -1,5 +1,5 @@
-/* ============================================================
-   SECSCAN — PREMIUM DARK PURPLE THEME
+﻿/* ============================================================
+   SECSCAN â€” PREMIUM DARK PURPLE THEME
    Complete rewrite for 60fps performance
    ============================================================ */
 
@@ -41,7 +41,7 @@
   --text-secondary: #94a3b8;
   --text-muted:     #475569;
 
-  /* Shadows — GPU-friendly (no huge spreads) */
+  /* Shadows â€” GPU-friendly (no huge spreads) */
   --shadow-card:    0 2px 16px rgba(0, 0, 0, 0.4), 0 0 15px rgba(168, 85, 247, 0.25);
   --shadow-purple:  0 4px 30px rgba(168, 85, 247, 0.6), 0 0 12px rgba(168, 85, 247, 0.8);
   --shadow-cyan:    0 4px 30px rgba(34, 211, 238, 0.5), 0 0 12px rgba(34, 211, 238, 0.7);
@@ -72,7 +72,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Static ambient glow — NO animation = 0 fps cost */
+/* Static ambient glow â€” NO animation = 0 fps cost */
 body::before {
   content: '';
   position: fixed;
@@ -102,7 +102,7 @@ ul { list-style: none; padding: 0; margin: 0; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(168, 85, 247, 0.5); }
 
 /* ============================================================
-   ANIMATIONS — minimal, GPU-only (transform + opacity)
+   ANIMATIONS â€” minimal, GPU-only (transform + opacity)
    ============================================================ */
 @keyframes fadeIn {
   from { opacity: 0; }
@@ -737,7 +737,7 @@ ul { list-style: none; padding: 0; margin: 0; }
 .terminal-line { display: flex; gap: 8px; }
 .terminal-prompt { color: rgba(74, 222, 128, 0.5); flex-shrink: 0; }
 .terminal-line:last-child::after {
-  content: '▋';
+  content: 'â–‹';
   color: var(--green-400);
   animation: blink 1s step-end infinite;
 }
@@ -1690,7 +1690,7 @@ ul { list-style: none; padding: 0; margin: 0; }
 --accent-red-dim: rgba(248,113,113,0.15);
 
 /* ============================================================
-   NETWORK TREE — COMPLETE OVERRIDE (Horizontal Org-Chart)
+   NETWORK TREE â€” COMPLETE OVERRIDE (Horizontal Org-Chart)
    ============================================================ */
 
 /* Root container */
@@ -1746,9 +1746,9 @@ ul { list-style: none; padding: 0; margin: 0; }
   transform-origin: top center;
 }
 
-/* ── ORG-CHART TREE LAYOUT ───────────────────────────────── */
+/* â”€â”€ ORG-CHART TREE LAYOUT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
-/* Root UL: vertical spine (Internet → Gateway) */
+/* Root UL: vertical spine (Internet â†’ Gateway) */
 .nt-children--root {
   list-style: none;
   display: flex;
@@ -1785,7 +1785,7 @@ ul { list-style: none; padding: 0; margin: 0; }
   padding-top: 0;
 }
 
-/* ── CONNECTOR LINES ─────────────────────────────────────── */
+/* â”€â”€ CONNECTOR LINES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 /* Vertical line FROM parent card DOWN (rendered above nt-children) */
 .nt-children:not(.nt-children--root) {
@@ -1813,9 +1813,7 @@ ul { list-style: none; padding: 0; margin: 0; }
   top: 0;  /* at the padding-top level */
   left: 0;
   right: 0;
-  height: 2px;
-  background: var(--purple-border);
-}
+  height: 2px; width: auto !important; transform: none !important; background: var(--purple-border); }
 /* First child: bar only on right half */
 .nt-children:not(.nt-children--root) > .nt-branch:first-child::before {
   left: 50%;
@@ -1848,7 +1846,7 @@ ul { list-style: none; padding: 0; margin: 0; }
   display: none;
 }
 
-/* Connector between root cards (Internet→Gateway) */
+/* Connector between root cards (Internetâ†’Gateway) */
 .nt-children--root > .nt-branch + .nt-branch {
   margin-top: 32px;
 }
@@ -1863,7 +1861,7 @@ ul { list-style: none; padding: 0; margin: 0; }
   background: var(--purple-border);
 }
 
-/* ── CARDS ──────────────────────────────────────────────── */
+/* â”€â”€ CARDS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .nt-card {
   position: relative;
   background: var(--bg-card);
@@ -1928,14 +1926,14 @@ ul { list-style: none; padding: 0; margin: 0; }
   white-space: nowrap;
 }
 
-/* ── DEVICE WRAPPER ─────────────────────────────────────── */
+/* â”€â”€ DEVICE WRAPPER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .nt-device-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
-/* ── PORTS POPUP ─────────────────────────────────────────── */
+/* â”€â”€ PORTS POPUP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .nt-ports-popup {
   background: var(--bg-surface);
   border: 1px solid var(--purple-border);
@@ -1968,7 +1966,7 @@ ul { list-style: none; padding: 0; margin: 0; }
 .nt-port-svc   { color: var(--text-secondary); font-size: 11px; flex: 1; }
 .nt-port-ver   { font-size: 10px; color: var(--text-muted); font-family: 'Fira Code', monospace; }
 
-/* ── CONTROLS ────────────────────────────────────────────── */
+/* â”€â”€ CONTROLS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .nt-controls {
   position: absolute;
   bottom: 16px;
@@ -2019,3 +2017,4 @@ ul { list-style: none; padding: 0; margin: 0; }
   font-size: 15px;
   text-align: center;
 }
+
