@@ -737,7 +737,7 @@ ul { list-style: none; padding: 0; margin: 0; }
 .terminal-line { display: flex; gap: 8px; }
 .terminal-prompt { color: rgba(74, 222, 128, 0.5); flex-shrink: 0; }
 .terminal-line:last-child::after {
-  content: 'â–‹';
+  content: ' ▶';
   color: var(--green-400);
   animation: blink 1s step-end infinite;
 }
