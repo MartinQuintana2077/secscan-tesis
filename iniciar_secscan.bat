@@ -11,7 +11,7 @@ start "SecScan - n8n" cmd /k "npx n8n"
 
 :: 2. Iniciar Backend con su entorno virtual
 echo [+] Iniciando Backend (Uvicorn)...
-start "SecScan - Backend" cmd /k "cd backend && .\venv\Scripts\uvicorn app:app --reload"
+start "SecScan - Backend" cmd /k "cd backend && .\venv\Scripts\python.exe -m uvicorn app:app --reload"
 
 :: 3. Iniciar Frontend (Vite)
 echo [+] Iniciando Frontend (Vite)...
