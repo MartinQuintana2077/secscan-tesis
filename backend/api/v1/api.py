@@ -10,7 +10,7 @@ api_router = APIRouter()
 api_router.include_router(scans.router, tags=["scans"])
 api_router.include_router(devices.router, tags=["devices"])
 api_router.include_router(system.router, tags=["system"])
-api_router.include_router(wifi.router, tags=["wifi"])
+api_router.include_router(wifi.router, prefix="/wifi", tags=["wifi"])
 
 # ========== RUTAS INTERNAS PARA N8N (Versión Segura) ==========
 from services.scan_service import ScanService
