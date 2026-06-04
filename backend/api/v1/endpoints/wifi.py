@@ -9,6 +9,7 @@ import uuid
 router = APIRouter()
 
 def scan_wifi_networks():
+    result = ""
     try:
         # Intentamos obtener la información detallada con Bssid para sacar el porcentaje de señal
         result = subprocess.check_output(
@@ -29,6 +30,11 @@ def scan_wifi_networks():
             # Fallback si no hay adaptador o servicio wlansvc está desactivado
             return []
 
+    # Impresión de diagnóstico para ver el output real en la consola de la notebook
+    print("\n--- [DEBUG NETSH WIFI RAW OUTPUT] ---")
+    print(result)
+    print("-------------------------------------\n")
+
     networks = []
     current_net = {}
     
@@ -37,8 +43,8 @@ def scan_wifi_networks():
         if not line:
             continue
         
-        # Match SSID [Número] : [Nombre SSID]
-        ssid_match = re.match(r"^SSID\s+\d+\s*:\s*(.*)$", line, re.IGNORECASE)
+        # Match SSID [Número] : [Nombre SSID] con límites de palabra (\b) para evitar matching con BSSID
+        ssid_match = re.search(r"\bSSID\s+\d+\s*:\s*(.*)$", line, re.IGNORECASE)
         if ssid_match:
             if current_net and current_net.get("ssid"):
                 networks.append(current_net)
@@ -68,7 +74,9 @@ def scan_wifi_networks():
         networks.append(current_net)
         
     # Filtrar SSIDs vacíos
-    return [n for n in networks if n.get("ssid")]
+    filtered = [n for n in networks if n.get("ssid")]
+    print(f"[DEBUG PARSED NETWORKS] {filtered}")
+    return filtered
 
 def connect_to_wifi(ssid: str, password: str = None):
     temp_filepath = None
