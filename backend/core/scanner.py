@@ -592,12 +592,13 @@ class ScannerEngine:
         """
         self._log(f"Iniciando escaneo profundo en: {ip_target}...")
         _t_deep = time.perf_counter()
-        
         # -sV: descubrir la versión exacta del servicio.
-        # -T3: velocidad normal, equilibrio entre rapidez y evasión de bloqueos.
-        # --top-ports 100: los 100 puertos más comunes (reemplaza -F que solo era top-100 sin control).
-        # --max-retries 1: no reintentar puertos cerrados, ahorra tiempo sin perder precisión.
-        self.nm.scan(hosts=ip_target, arguments='-sV -T3 --top-ports 100 --max-retries 1')
+        # --version-intensity 2: Detección rápida y ligera.
+        # -T4: velocidad agresiva.
+        # --top-ports 100: los 100 puertos más comunes.
+        # --max-retries 1: no reintentar puertos cerrados.
+        # --host-timeout 45s: Evita bloqueos en dispositivos lentos o filtrados.
+        self.nm.scan(hosts=ip_target, arguments='-sV --version-intensity 2 -T4 --top-ports 100 --max-retries 1 --host-timeout 45s')
         
         if ip_target not in self.nm.all_hosts():
             return {"ip": ip_target, "puertos": []}

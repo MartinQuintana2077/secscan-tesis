@@ -140,9 +140,67 @@ def run_passive_background_worker():
                 pass
                 
             if new_devices:
+                # Conservar datos de escaneo profundo previos
+                for ip, data in new_devices.items():
+                    if ip in _passive_device_cache:
+                        old_data = _passive_device_cache[ip]
+                        if old_data.get("deep_scan_status"):
+                            data["deep_scan_status"] = old_data.get("deep_scan_status")
+                            data["puertos_abiertos"] = old_data.get("puertos_abiertos", [])
+                            data["total_vulnerabilidades"] = old_data.get("total_vulnerabilidades", 0)
+                            data["fabricante"] = old_data.get("fabricante", data.get("vendor", ""))
+                            if "mac" in old_data and old_data["mac"] != "Desconocida":
+                                data["mac"] = old_data["mac"]
+                            if "hostname" in old_data and old_data["hostname"] != "Caché ARP Pasiva":
+                                data["hostname"] = old_data["hostname"]
                 _passive_device_cache = new_devices
             
             print(f"[PassiveScanDaemon] Ciclo de fondo finalizado. Dispositivos en caché: {len(new_devices)} | IPs: {list(new_devices.keys())}")
+
+            # 4. Escáner Pasivo Profundo (Trabajo de Hormiga)
+            unscanned_ip = None
+            for ip, data in _passive_device_cache.items():
+                if not data.get("deep_scan_status"):
+                    unscanned_ip = ip
+                    break
+            
+            if unscanned_ip:
+                print(f"[PassiveScanDaemon] Iniciando Deep-Scan silencioso en {unscanned_ip}...")
+                _passive_device_cache[unscanned_ip]["deep_scan_status"] = "scanning"
+                
+                # Instanciar motores localmente para el hilo
+                from core.scanner import ScannerEngine
+                from core.cve_client import CVEClient
+                bg_scanner = ScannerEngine()
+                bg_cve = CVEClient()
+                
+                try:
+                    puertos_info = bg_scanner.scan_ports(unscanned_ip)
+                    puertos = puertos_info.get("puertos_abiertos", [])
+                    total_vulns = 0
+                    
+                    for puerto in puertos:
+                        servicio = puerto.get("servicio", "")
+                        version = puerto.get("version", "")
+                        if version and version.strip() != "":
+                            cves = bg_cve.buscar_vulnerabilidades(servicio, version)
+                            puerto["vulnerabilidades"] = cves
+                            total_vulns += len(cves)
+                        else:
+                            puerto["vulnerabilidades"] = []
+                            
+                    _passive_device_cache[unscanned_ip].update({
+                        "deep_scan_status": "completed",
+                        "puertos_abiertos": puertos,
+                        "total_vulnerabilidades": total_vulns,
+                        "fabricante": puertos_info.get("fabricante", "Desconocido"),
+                        "mac": puertos_info.get("mac", _passive_device_cache[unscanned_ip].get("mac", "Desconocida")),
+                        "hostname": puertos_info.get("hostname", _passive_device_cache[unscanned_ip].get("hostname", ""))
+                    })
+                    print(f"[PassiveScanDaemon] ✅ Deep-Scan completado silenciosamente para {unscanned_ip}.")
+                except Exception as e:
+                    print(f"[PassiveScanDaemon] Error en Deep-Scan silencioso para {unscanned_ip}: {e}")
+                    _passive_device_cache[unscanned_ip]["deep_scan_status"] = None # Reset para reintentar
 
                 
         except Exception as e:
@@ -293,22 +351,45 @@ class ScanService:
                 _deep_scan_start_time = time.perf_counter()
         try:
             self._log(f"====== INICIANDO ESCANEO PARA: {ip} (user: {user_id}, scan: {scan_id}) ======")
-            puertos_info = self.scanner.scan_ports(ip)
-            puertos = puertos_info.get("puertos_abiertos", [])
             
-            total_vulnerabilidades = 0
-            for puerto in puertos:
-                servicio = puerto.get("servicio", "")
-                version = puerto.get("version", "")
+            # RELEVO CONCURRENTE: Consumo de Caché Pasiva Profunda
+            cached_data = _passive_device_cache.get(ip)
+            es_recuperado_cache = False
+            
+            if cached_data:
+                esperas = 0
+                while cached_data.get("deep_scan_status") == "scanning" and esperas < 60:
+                    self._log(f"⏳ [DEEP-SCAN] {ip} está siendo analizado por el demonio pasivo. Sincronizando relevo...")
+                    time.sleep(1)
+                    esperas += 1
                 
-                if version and version.strip() != "":
-                    cves = self.cve_client.buscar_vulnerabilidades(servicio, version)
-                    puerto["vulnerabilidades"] = cves
-                    total_vulnerabilidades += len(cves)
-                else:
-                    puerto["vulnerabilidades"] = []
+                if cached_data.get("deep_scan_status") == "completed":
+                    self._log(f"[DEEP-SCAN] ✅ {ip} recuperado de caché pasiva instantáneamente.")
+                    puertos = cached_data.get("puertos_abiertos", [])
+                    total_vulnerabilidades = cached_data.get("total_vulnerabilidades", 0)
+                    mac_real = cached_data.get("mac", "Desconocida")
+                    fabricante_info = cached_data.get("fabricante", "Desconocido")
+                    es_recuperado_cache = True
             
-            mac_real = puertos_info.get("mac", "Desconocida")
+            if not es_recuperado_cache:
+                puertos_info = self.scanner.scan_ports(ip)
+                puertos = puertos_info.get("puertos_abiertos", [])
+                
+                total_vulnerabilidades = 0
+                for puerto in puertos:
+                    servicio = puerto.get("servicio", "")
+                    version = puerto.get("version", "")
+                    
+                    if version and version.strip() != "":
+                        cves = self.cve_client.buscar_vulnerabilidades(servicio, version)
+                        puerto["vulnerabilidades"] = cves
+                        total_vulnerabilidades += len(cves)
+                    else:
+                        puerto["vulnerabilidades"] = []
+                
+                mac_real = puertos_info.get("mac", "Desconocida")
+                fabricante_info = puertos_info.get("fabricante", "Desconocido")
+
             id_unico = mac_real if mac_real != "Desconocida" else ip
             
             # Lógica de Historial e Intrusos
@@ -323,7 +404,7 @@ class ScanService:
                     "ip_inicial": ip,
                     "mac": mac_real,
                     "primera_conexion": hora_actual,
-                    "fabricante": puertos_info.get("fabricante", "Desconocido")
+                    "fabricante": fabricante_info
                 }, user_id)
             else:
                 datos_historial = doc_snap.to_dict()
