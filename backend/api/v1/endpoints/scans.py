@@ -150,6 +150,16 @@ def trigger_scan(request: ScanRequest, background_tasks: BackgroundTasks, author
     - Genera scanId único (idempotencia)
     - Delega tarea a BackgroundTasks para emitir logs en vivo
     """
+    import socket as _socket
+    # ── Chequeo rápido de conexión a internet (1 segundo de timeout) ──
+    try:
+        _socket.create_connection(("8.8.8.8", 53), timeout=1.0)
+    except OSError:
+        raise HTTPException(
+            status_code=503,
+            detail="SIN_INTERNET"
+        )
+    
     user_id = user.get("uid", "")
     target_ip = request.target_ip if request.target_ip else "auto"
     scan_id = request.scan_id if request.scan_id else str(uuid.uuid4())

@@ -24,6 +24,11 @@ start "SecScan - Backend" cmd /k "cd /d "%RAIZ%\backend" && "%RAIZ%\backend\venv
 echo [+] Iniciando Frontend (Vite)...
 start "SecScan - Frontend" cmd /k "cd /d "%RAIZ%\frontend" && npm run dev"
 
+:: 4. Abrir la interfaz web automáticamente
+echo [+] Abriendo el navegador...
+timeout /t 3 >nul
+start http://localhost:5173
+
 echo.
 echo [!] Todos los servicios lanzados con exito.
 echo [!] Puedes cerrar esta ventana. Las demas seguiran corriendo.

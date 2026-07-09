@@ -1,5 +1,8 @@
 import requests
 import time
+import json
+import datetime
+from core.local_db import LocalDBManager
 
 class CVEClient:
     """
@@ -24,8 +27,20 @@ class CVEClient:
             return []
         
         # Construimos la palabra clave de búsqueda combinando servicio + versión
-        keyword = f"{nombre_servicio} {version}"
+        keyword = f"{nombre_servicio} {version}".strip()
         
+        # 1. Intentar obtener de la caché local de SQLite
+        try:
+            local_db = LocalDBManager()
+            cache_rows = local_db.execute_read(
+                "SELECT cves_json FROM cve_cache WHERE keyword = ?", (keyword,)
+            )
+            if cache_rows:
+                print(f"📦 [CVE CACHE] hit local para '{keyword}'")
+                return json.loads(cache_rows[0]["cves_json"])
+        except Exception as e:
+            print(f"[CVE CACHE ERROR] Falló lectura de caché local: {e}")
+
         # Parámetros oficiales de la API NVD v2.0
         parametros = {
             "keywordSearch": keyword,
@@ -95,6 +110,16 @@ class CVEClient:
                 })
             
             print(f"✅ Se encontraron {len(vulnerabilidades)} CVEs para '{keyword}'")
+            
+            # 2. Guardar en caché local
+            try:
+                local_db.execute_write(
+                    "INSERT OR REPLACE INTO cve_cache (keyword, cves_json, cached_at) VALUES (?, ?, ?)",
+                    (keyword, json.dumps(vulnerabilidades), datetime.datetime.utcnow().isoformat())
+                )
+            except Exception as ex:
+                print(f"[CVE CACHE ERROR] Falló escritura de caché local: {ex}")
+                
             return vulnerabilidades
             
         except requests.exceptions.Timeout:

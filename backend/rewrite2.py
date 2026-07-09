@@ -1,0 +1,13 @@
+import re
+
+file_path = r'C:\Users\Martin\Desktop\escaner\backend\services\scan_service.py'
+with open(file_path, 'r', encoding='utf-8') as f:
+    lines = f.readlines()
+
+new_lines = []
+for line in lines:
+    new_line = re.sub(r'(\s+)print\(', r'\1self._log(', line)
+    new_lines.append(new_line)
+
+with open(file_path, 'w', encoding='utf-8') as f:
+    f.writelines(new_lines)

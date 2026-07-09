@@ -1,6 +1,6 @@
 /* ============================================================
-   SECSCAN â€” PREMIUM DARK PURPLE THEME
-   Complete rewrite for 60fps performance
+   SECSCAN - MINIMALIST DARK TECH THEME
+   Complete rewrite for professional corporate look
    ============================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Fira+Code:wght@400;500&display=swap');
@@ -10,47 +10,47 @@
    ============================================================ */
 :root {
   /* Colors */
-  --bg-base:        #07080f;
-  --bg-surface:     #0d0f1a;
-  --bg-card:        #11141f;
-  --bg-card-hover:  #161926;
-  --bg-overlay:     rgba(7, 8, 15, 0.92);
+  --bg-base:        #0a0a0c;
+  --bg-surface:     #121214;
+  --bg-card:        #18181b;
+  --bg-card-hover:  #27272a;
+  --bg-overlay:     rgba(10, 10, 12, 0.95);
 
-  --purple-500:     #a855f7;
-  --purple-400:     #c084fc;
-  --purple-300:     #d8b4fe;
-  --purple-dim:     rgba(168, 85, 247, 0.12);
-  --purple-border:  rgba(168, 85, 247, 0.85); /* Brighter for hover states */
-  --purple-glow:    rgba(168, 85, 247, 0.3);
+  --purple-500:     #0ea5e9; /* Sky Blue replacing Purple */
+  --purple-400:     #38bdf8;
+  --purple-300:     #7dd3fc;
+  --purple-dim:     rgba(14, 165, 233, 0.12);
+  --purple-border:  rgba(14, 165, 233, 0.3); 
+  --purple-glow:    rgba(14, 165, 233, 0.05);
 
-  --cyan-400:       #22d3ee;
-  --cyan-500:       #06b6d4;
-  --cyan-dim:       rgba(34, 211, 238, 0.10);
-  --cyan-border:    rgba(34, 211, 238, 0.25);
+  --cyan-400:       #2dd4bf; /* Teal Tech */
+  --cyan-500:       #14b8a6;
+  --cyan-dim:       rgba(20, 184, 166, 0.10);
+  --cyan-border:    rgba(20, 184, 166, 0.25);
 
-  --green-400:      #4ade80;
-  --green-dim:      rgba(74, 222, 128, 0.10);
-  --red-400:        #f87171;
-  --red-dim:        rgba(248, 113, 113, 0.10);
-  --yellow-400:     #facc15;
+  --green-400:      #10b981;
+  --green-dim:      rgba(16, 185, 129, 0.10);
+  --red-400:        #ef4444;
+  --red-dim:        rgba(239, 68, 68, 0.10);
+  --yellow-400:     #eab308;
 
-  --border-base:    rgba(168, 85, 247, 0.45); /* Much stronger passive border */
-  --border-subtle:  rgba(168, 85, 247, 0.2);
+  --border-base:    rgba(255, 255, 255, 0.1);
+  --border-subtle:  rgba(255, 255, 255, 0.05);
 
-  --text-primary:   #f1f5f9;
+  --text-primary:   #f8fafc;
   --text-secondary: #94a3b8;
-  --text-muted:     #475569;
+  --text-muted:     #64748b;
 
   /* Accent variable fallbacks */
   --accent-cyan:    var(--cyan-400);
   --accent-red:     var(--red-400);
   --accent-green:   var(--green-400);
-  --accent-red-dim: rgba(248, 113, 113, 0.15);
+  --accent-red-dim: rgba(239, 68, 68, 0.15);
 
-  /* Shadows â€” GPU-friendly (no huge spreads) */
-  --shadow-card:    0 2px 16px rgba(0, 0, 0, 0.4), 0 0 15px rgba(168, 85, 247, 0.25);
-  --shadow-purple:  0 4px 30px rgba(168, 85, 247, 0.6), 0 0 12px rgba(168, 85, 247, 0.8);
-  --shadow-cyan:    0 4px 30px rgba(34, 211, 238, 0.5), 0 0 12px rgba(34, 211, 238, 0.7);
+  /* Shadows - Minimal and crisp */
+  --shadow-card:    0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-purple:  0 0 0 1px var(--purple-border); /* using border instead of glow */
+  --shadow-cyan:    0 0 0 1px var(--cyan-border);
 
   /* Transitions */
   --ease-out:       cubic-bezier(0.4, 0, 0.2, 1);
@@ -78,16 +78,9 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Static ambient glow â€” NO animation = 0 fps cost */
+/* Removed ambient glow entirely for flat professional look */
 body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 60% 50% at 10% 15%, rgba(168, 85, 247, 0.06) 0%, transparent 70%),
-    radial-gradient(ellipse 50% 40% at 90% 80%, rgba(34, 211, 238, 0.04) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: 0;
+  display: none;
 }
 
 #root {
