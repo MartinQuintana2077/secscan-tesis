@@ -43,10 +43,6 @@ def scan_wifi_networks():
             # Fallback si no hay adaptador o servicio wlansvc está desactivado
             return []
 
-    # Impresión de diagnóstico para ver el output real en la consola de la notebook
-    print("\n--- [DEBUG NETSH WIFI RAW OUTPUT] ---")
-    print(result)
-    print("-------------------------------------\n")
 
     networks = []
     current_net = {}
@@ -88,7 +84,6 @@ def scan_wifi_networks():
         
     # Filtrar SSIDs vacíos
     filtered = [n for n in networks if n.get("ssid")]
-    print(f"[DEBUG PARSED NETWORKS] {filtered}")
     return filtered
 
 def connect_to_wifi(ssid: str, password: str = None):

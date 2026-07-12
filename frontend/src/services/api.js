@@ -15,6 +15,11 @@ export async function triggerN8nScan(targetIp, token, scanId, passive = false) {
       passive
     }),
   });
+  if (res.status === 503) {
+    const err = new Error("SIN_INTERNET");
+    err.code = "SIN_INTERNET";
+    throw err;
+  }
   return res.json();
 }
 

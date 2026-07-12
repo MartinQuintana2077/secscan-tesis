@@ -12,6 +12,7 @@ from services.db_service import DatabaseService
 # Caché en memoria global recopilada por el demonio pasivo de fondo
 _passive_device_cache = {}
 _last_subnet = None
+_last_discovery_time = 0.0
 _daemon_started = False
 _daemon_lock = threading.Lock()
 
@@ -37,10 +38,9 @@ def start_passive_daemon():
     thread = threading.Thread(target=run_passive_background_worker, daemon=True, name="PassiveScanDaemon")
     thread.start()
     print("[PassiveScanDaemon] Hilo de escaneo pasivo en segundo plano iniciado correctamente.")
-
 def run_passive_background_worker():
     """Ciclo en segundo plano del demonio pasivo."""
-    global _last_subnet, _passive_device_cache
+    global _last_subnet, _passive_device_cache, _last_discovery_time
     global _active_scan_count, _active_scan_count_lock, _last_active_time
     
     # Espera inicial para la estabilización de interfaces de red
@@ -64,7 +64,7 @@ def run_passive_background_worker():
         if _paused_logged:
             print("[PassiveScanDaemon] Escaneo activo finalizado. Reanudando ciclos pasivos en segundo plano.")
             _paused_logged = False
-
+ 
         try:
             current_cidr = get_local_cidr()
             if not current_cidr:
@@ -75,87 +75,104 @@ def run_passive_background_worker():
                 print(f"[PassiveScanDaemon] Cambio de red o nueva subred detectada: {current_cidr}. Limpiando caché anterior.")
                 _last_subnet = current_cidr
                 _passive_device_cache.clear()
+                _last_discovery_time = 0.0
             
-            print(f"[PassiveScanDaemon] Iniciando ciclo de escaneo pasivo en segundo plano en {current_cidr}...")
-            prefix = current_cidr.split('/')[0].rsplit('.', 1)[0] + '.'
+            # --- DETERMINAR SI NECESITAMOS REALIZAR EL BARRIDO DE DESCUBRIMIENTO ---
+            ahora = time.time()
+            necesita_descubrimiento = False
             
-            # 1. Refresco Silencioso (Ping Sweep rápido en background para poblar ARP cache)
-            try:
-                nm = nmap.PortScanner()
-                nm.scan(hosts=current_cidr, arguments='-sn -PE -T3')
-            except Exception:
-                pass
-
-            # 2. Lectura y parsing de la caché ARP local del SO
-            found_ips = set()
-            new_devices = {}
-            try:
-                arp_output = subprocess.check_output('arp -a', shell=True).decode('cp1252', errors='ignore')
-                for line in arp_output.split('\n'):
-                    parts = line.split()
-                    if len(parts) >= 2:
-                        ip_arp = parts[0].strip()
-                        mac_arp = parts[1].strip().replace('-', ':').upper()
-                        if (ip_arp.startswith(prefix)
-                                and ip_arp not in found_ips
-                                and not ip_arp.endswith('.255')
-                                and mac_arp not in ('FF:FF:FF:FF:FF:FF', 'FF-FF-FF-FF-FF-FF')
-                                and len(mac_arp) == 17):
-                            
-                            cached_dev = _passive_device_cache.get(ip_arp)
-                            hostname = cached_dev.get("hostname") if cached_dev else ""
-                            vendor = cached_dev.get("vendor", "") if cached_dev else ""
-                            
-                            if not hostname or hostname == "Caché ARP Pasiva":
-                                try:
-                                    hostname = socket.gethostbyaddr(ip_arp)[0]
-                                except Exception:
-                                    hostname = "Caché ARP Pasiva"
-                                    
-                            new_devices[ip_arp] = {
-                                "ip": ip_arp,
-                                "mac": mac_arp,
-                                "hostname": hostname,
-                                "vendor": vendor,
-                                "discovery_method": "arp_cache_passive",
-                                "parent_ip": current_cidr.split('/')[0]
-                            }
-                            found_ips.add(ip_arp)
-            except Exception as e:
-                print(f"[PassiveScanDaemon] Error leyendo tabla ARP: {e}")
-
-            # 3. Incorporar la máquina host actual a la lista
-            try:
-                local_ip = get_local_ip()
-                if local_ip not in found_ips and local_ip.startswith(prefix):
-                    new_devices[local_ip] = {
-                        "ip": local_ip,
-                        "mac": get_local_mac(),
-                        "hostname": socket.gethostname(),
-                        "vendor": "",
-                        "discovery_method": "local_passive",
-                        "parent_ip": current_cidr.split('/')[0]
-                    }
-            except Exception:
-                pass
+            if not _passive_device_cache:
+                necesita_descubrimiento = True
+            elif ahora - _last_discovery_time > 300: # 5 minutos
+                necesita_descubrimiento = True
+            else:
+                # Si no quedan dispositivos pendientes de escanear en la caché
+                unscanned_exists = any(not data.get("deep_scan_status") for data in _passive_device_cache.values())
+                if not unscanned_exists:
+                    necesita_descubrimiento = True
+            
+            if necesita_descubrimiento:
+                print(f"[PassiveScanDaemon] Iniciando ciclo de escaneo pasivo en segundo plano en {current_cidr}...")
+                _last_discovery_time = ahora
+                prefix = current_cidr.split('/')[0].rsplit('.', 1)[0] + '.'
                 
-            if new_devices:
-                # Conservar datos de escaneo profundo previos
-                for ip, data in new_devices.items():
-                    if ip in _passive_device_cache:
-                        old_data = _passive_device_cache[ip]
-                        if old_data.get("deep_scan_status"):
-                            data["deep_scan_status"] = old_data.get("deep_scan_status")
-                            data["puertos_abiertos"] = old_data.get("puertos_abiertos", [])
-                            data["total_vulnerabilidades"] = old_data.get("total_vulnerabilidades", 0)
-                            data["fabricante"] = old_data.get("fabricante", data.get("vendor", ""))
-                            if "mac" in old_data and old_data["mac"] != "Desconocida":
-                                data["mac"] = old_data["mac"]
-                            if "hostname" in old_data and old_data["hostname"] != "Caché ARP Pasiva":
-                                data["hostname"] = old_data["hostname"]
-                _passive_device_cache = new_devices
-            
-            print(f"[PassiveScanDaemon] Ciclo de fondo finalizado. Dispositivos en caché: {len(new_devices)} | IPs: {list(new_devices.keys())}")
+                # 1. Refresco Silencioso (Ping Sweep rápido en background para poblar ARP cache)
+                try:
+                    nm = nmap.PortScanner()
+                    nm.scan(hosts=current_cidr, arguments='-sn -PE -T3')
+                except Exception:
+                    pass
+ 
+                # 2. Lectura y parsing de la caché ARP local del SO
+                found_ips = set()
+                new_devices = {}
+                try:
+                    arp_output = subprocess.check_output('arp -a', shell=True).decode('cp1252', errors='ignore')
+                    for line in arp_output.split('\n'):
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            ip_arp = parts[0].strip()
+                            mac_arp = parts[1].strip().replace('-', ':').upper()
+                            if (ip_arp.startswith(prefix)
+                                    and ip_arp not in found_ips
+                                    and not ip_arp.endswith('.255')
+                                    and mac_arp not in ('FF:FF:FF:FF:FF:FF', 'FF-FF-FF-FF-FF-FF')
+                                    and len(mac_arp) == 17):
+                                
+                                cached_dev = _passive_device_cache.get(ip_arp)
+                                hostname = cached_dev.get("hostname") if cached_dev else ""
+                                vendor = cached_dev.get("vendor", "") if cached_dev else ""
+                                
+                                if not hostname or hostname == "Caché ARP Pasiva":
+                                    try:
+                                        hostname = socket.gethostbyaddr(ip_arp)[0]
+                                    except Exception:
+                                        hostname = "Caché ARP Pasiva"
+                                        
+                                new_devices[ip_arp] = {
+                                    "ip": ip_arp,
+                                    "mac": mac_arp,
+                                    "hostname": hostname,
+                                    "vendor": vendor,
+                                    "discovery_method": "arp_cache_passive",
+                                    "parent_ip": current_cidr.split('/')[0]
+                                }
+                                found_ips.add(ip_arp)
+                except Exception as e:
+                    print(f"[PassiveScanDaemon] Error leyendo tabla ARP: {e}")
+ 
+                # 3. Incorporar la máquina host actual a la lista
+                try:
+                    local_ip = get_local_ip()
+                    if local_ip not in found_ips and local_ip.startswith(prefix):
+                        new_devices[local_ip] = {
+                            "ip": local_ip,
+                            "mac": get_local_mac(),
+                            "hostname": socket.gethostname(),
+                            "vendor": "",
+                            "discovery_method": "local_passive",
+                            "parent_ip": current_cidr.split('/')[0]
+                        }
+                except Exception:
+                    pass
+                    
+                if new_devices:
+                    # Conservar datos de escaneo profundo previos
+                    for ip, data in new_devices.items():
+                        if ip in _passive_device_cache:
+                            old_data = _passive_device_cache[ip]
+                            if old_data.get("deep_scan_status"):
+                                data["deep_scan_status"] = old_data.get("deep_scan_status")
+                                data["puertos_abiertos"] = old_data.get("puertos_abiertos", [])
+                                data["total_vulnerabilidades"] = old_data.get("total_vulnerabilidades", 0)
+                                data["fabricante"] = old_data.get("fabricante", data.get("vendor", ""))
+                                if "mac" in old_data and old_data["mac"] != "Desconocida":
+                                    data["mac"] = old_data["mac"]
+                                if "hostname" in old_data and old_data["hostname"] != "Caché ARP Pasiva":
+                                    data["hostname"] = old_data["hostname"]
+                    _passive_device_cache = new_devices
+                
+                print(f"[PassiveScanDaemon] Ciclo de fondo finalizado. Dispositivos en caché: {len(_passive_device_cache)} | IPs: {list(_passive_device_cache.keys())}")
 
             # 4. Escáner Pasivo Profundo (Trabajo de Hormiga)
             unscanned_ip = None
@@ -369,6 +386,7 @@ class ScanService:
                     total_vulnerabilidades = cached_data.get("total_vulnerabilidades", 0)
                     mac_real = cached_data.get("mac", "Desconocida")
                     fabricante_info = cached_data.get("fabricante", "Desconocido")
+                    hostname_info = cached_data.get("hostname", "")
                     es_recuperado_cache = True
             
             if not es_recuperado_cache:
@@ -389,6 +407,7 @@ class ScanService:
                 
                 mac_real = puertos_info.get("mac", "Desconocida")
                 fabricante_info = puertos_info.get("fabricante", "Desconocido")
+                hostname_info = puertos_info.get("hostname", "")
 
             id_unico = mac_real if mac_real != "Desconocida" else ip
             
@@ -417,12 +436,12 @@ class ScanService:
                     v_score = v.get("score", 0)
                     if v_score > max_score:
                         max_score = v_score
-
+ 
             documento = {
                 "ip": ip,
                 "mac": mac_real,
-                "hostname": puertos_info.get("hostname", ""),
-                "fabricante": puertos_info.get("fabricante", "Desconocido"),
+                "hostname": hostname_info,
+                "fabricante": fabricante_info,
                 "puertos_abiertos": puertos,
                 "total_vulnerabilidades": total_vulnerabilidades,
                 "max_score": max_score,

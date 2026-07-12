@@ -29,6 +29,15 @@ app.include_router(n8n_router, prefix="/internal")
 
 @app.on_event("startup")
 def startup_event():
+    # 1. Inicializar base de datos local SQLite
+    from core.local_db import LocalDBManager
+    LocalDBManager()
+    
+    # 2. Iniciar demonio de sincronización offline
+    from services.sync_service import start_sync_daemon
+    start_sync_daemon()
+    
+    # 3. Iniciar demonio de escaneo pasivo de red
     from services.scan_service import start_passive_daemon
     start_passive_daemon()
 

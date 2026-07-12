@@ -1,45 +1,41 @@
-# Guía de Instalación en un Nuevo Computador (SecScan)
+# Installation Guide — SecScan
 
-Como tu proyecto ya está en GitHub, moverlo a otra PC es muy sencillo. Sigue estos pasos exactos para que todo funcione a la primera:
+## Prerequisites
+
+Make sure the following tools are installed before proceeding:
+
+- **Git** — [Download here](https://git-scm.com/)
+- **Python 3.10+** — [Download here](https://www.python.org/). During installation, check **"Add Python to PATH"**
+- **Node.js v18+** — [Download here](https://nodejs.org/)
+- **Nmap** — The app can install it automatically on first launch
 
 ---
 
-## 1. Requisitos Previos (Instalar en la nueva PC)
-Primero, asegúrate de que la nueva computadora tenga estas 3 herramientas:
-*   **Git:** Para bajar el código ([Descargar aquí](https://git-scm.com/)).
-*   **Python (3.10 o superior):** Para el Backend. Al instalarlo, marca la casilla que dice **"Add Python to PATH"**.
-*   **Node.js (v18 o superior):** Para el Frontend y n8n ([Descargar aquí](https://nodejs.org/)).
+## 1. Clone the repository
 
----
-
-## 2. Bajar el Código
-Abre una terminal (PowerShell o CMD) y escribe:
 ```powershell
-cd Desktop
 git clone https://github.com/MartinQuintanaC/secscan-tesis.git
 cd secscan-tesis
 ```
 
 ---
 
-## 3. Configurar el Backend (Cerebro)
+## 2. Configure the Backend
+
 ```powershell
 cd backend
-# Crear el entorno virtual
 python -m venv venv
-# Activar el entorno
 .\venv\Scripts\activate
-# Instalar las librerías
 pip install -r requirements.txt
 ```
 
-> [!IMPORTANT]
-> **Paso Secreto (Credenciales):** Por seguridad, el archivo `firebase_admin.json` **no está en GitHub**. Tienes que copiar ese archivo manualmente de tu computadora actual a la carpeta `backend` de la nueva PC. Si no lo haces, el programa no podrá conectarse a la base de datos.
+> **Firebase credentials:** The `firebase_admin.json` file is **not included** in the repository for security reasons.  
+> You must obtain it from your Firebase project console (Project Settings → Service Accounts → Generate new private key) and place it inside the `backend/` folder.
 
 ---
 
-## 4. Configurar el Frontend (Interfaz)
-Abre otra terminal en la carpeta principal del proyecto:
+## 3. Configure the Frontend
+
 ```powershell
 cd frontend
 npm install
@@ -47,32 +43,45 @@ npm install
 
 ---
 
-## 5. El Orquestador (n8n)
-En una tercera terminal, ejecuta:
-```powershell
-npx n8n
+## 4. Start the application
+
+**Option A — Windows (one click):**
 ```
-Si es la primera vez en esa PC, te pedirá permiso para instalarlo; dile que **"y"** (sí).
-Una vez que inicie, haz lo siguiente:
-1. Abre tu navegador y ve a `http://localhost:5678`.
-2. Configura tu cuenta local (pon cualquier correo y contraseña, es solo para ti).
-3. En el menú, ve a **Workflows** y haz clic en **Import from File**.
-4. Selecciona el archivo `workflow_secscan_n8n.json` que viene incluido en la carpeta del proyecto.
-5. Arriba a la derecha, pon el switch en **Active** (Verde).
+iniciar_secscan.bat
+```
+
+**Option B — Manual (two terminals):**
+
+Terminal 1:
+```powershell
+cd backend
+.\venv\Scripts\activate
+uvicorn app:app --reload
+```
+
+Terminal 2:
+```powershell
+cd frontend
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
-## 6. ¡El Toque Maestro! (Motor Nmap)
-¡No instales Nmap a mano!
-1. Inicia tu backend (`uvicorn main:app --reload`).
-2. Entra a tu Dashboard en `http://localhost:5173`.
-3. El sistema detectará que la PC es nueva y te mostrará el aviso de **"Motor Nmap Ausente"**.
-4. ¡Dale click al botón **Instalar Automáticamente** que programamos hoy y deja que SecScan se configure solo!
+## 5. Install Nmap (first time only)
+
+If Nmap is not detected, the dashboard will show a warning banner with an **"Install Automatically"** button. Click it and SecScan will handle the installation.
 
 ---
 
-## Resumen de inicio diario
-Una vez instalado todo, para usarlo cada día solo necesitas correr estos 3 comandos en terminales separadas:
-1. `npx n8n`
-2. `cd backend; .\venv\Scripts\uvicorn app:app --reload`
-3. `cd frontend; npm run dev`
+## Daily usage
+
+Once everything is set up, just run:
+```powershell
+# Terminal 1
+cd backend; .\venv\Scripts\activate; uvicorn app:app --reload
+
+# Terminal 2
+cd frontend; npm run dev
+```

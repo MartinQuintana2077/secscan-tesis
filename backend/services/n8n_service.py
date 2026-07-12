@@ -67,12 +67,7 @@ class N8nService:
        Si n8n está disponible, lo usa.
         Si no, ejecuta directamente SIN hacer polling a rutas internas.
         """
-        print(f"🔍 [N8nService] run_discover - user_id: {user_id}")
-        print(f"🔍 [N8nService] run_discover - target_ip: {target_ip}")
-        
-        # Validar que user_id no esté vacío
         if not user_id or user_id == "legacy_user":
-            print("⚠️ ERROR: user_id inválido o vacío")
             return {"status": "error", "code": "INVALID_USER_ID", "message": "Usuario no identificado"}
         
         self.db_service.clear_devices(user_id)
@@ -110,8 +105,6 @@ class N8nService:
         
         IMPORTANTE: Recibe user_id del caller, NO de ningún request.
         """
-        print(f"🔍 [N8nService] Modo DIRECTO - user_id: {user_id}")
-        
         # Ejecutar el escaneo directamente (no llama a rutas HTTP)
         result = self.scan_service.discover(target_ip)
         
@@ -128,7 +121,6 @@ class N8nService:
     
     def run_deep_scan(self, ip: str, user_id: str) -> dict:
         """Ejecuta el escaneo profundo de un dispositivo."""
-        print(f"🔍 [N8nService] run_deep_scan - user_id: {user_id}, ip: {ip}")
         detalle = self.scan_service.deep_scan(ip, user_id)
         return {
             "status": "ok",

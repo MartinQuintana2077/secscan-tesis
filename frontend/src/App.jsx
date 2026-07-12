@@ -1,3 +1,4 @@
+import { Home as HomeIcon, BarChart, LogOut, Shield, Crosshair, Flame, Radio, Globe, Monitor, Plug, Folder, Clock, AlertTriangle, Activity, Rocket, EyeOff, Zap } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import {
   BrowserRouter as Router,
@@ -107,17 +108,17 @@ function Navbar() {
               <div className="sidebar-user-details">
                 <h3 className="sidebar-user-name">{user.displayName}</h3>
                 <span className="sidebar-user-email">{user.email || "Usuario Invitado"}</span>
-                <span className="sidebar-user-role">🛡️ Auditor de Redes</span>
+                <span className="sidebar-user-role"><Shield size={16} className="inline-icon" />  Auditor de Redes</span>
               </div>
             </div>
 
             <div className="sidebar-menu">
               <div className="sidebar-menu-section-title">Navegación</div>
               <a href="/" className="sidebar-menu-item" onClick={() => setSidebarOpen(false)}>
-                🏠 Inicio Dashboard
+                <HomeIcon size={18} className="inline-icon" />  Inicio Dashboard
               </a>
               <a href="/history" className="sidebar-menu-item" onClick={() => setSidebarOpen(false)}>
-                📊 Historial de Auditorías
+                <BarChart size={18} className="inline-icon" />  Historial de Auditorías
               </a>
             </div>
 
@@ -129,7 +130,7 @@ function Navbar() {
                   logout();
                 }}
               >
-                🚪 Cerrar Sesión
+                <LogOut size={18} className="inline-icon" />  Cerrar Sesión
               </button>
             </div>
           </div>
@@ -188,14 +189,14 @@ function Home() {
       const token = await getToken();
       const res = await connectWifi(selectedWifi.ssid, wifiPassword, token);
       if (res.status === "ok") {
-        setConsoleLogs(prev => [...prev, `✅ Conectando a '${selectedWifi.ssid}'... La red cambiará en unos segundos.`]);
+        setConsoleLogs(prev => [...prev, `[OK] Conectando a '${selectedWifi.ssid}'... La red cambiará en unos segundos.`]);
         setSelectedWifi(null);
         setWifiPassword("");
       } else {
-        setConsoleLogs(prev => [...prev, `❌ Error al conectar: ${res.detail}`]);
+        setConsoleLogs(prev => [...prev, `[ERR] Error al conectar: ${res.detail}`]);
       }
     } catch (e) {
-      setConsoleLogs(prev => [...prev, "❌ Error crítico conectando a la red WiFi."]);
+      setConsoleLogs(prev => [...prev, "[ERR] Error crítico conectando a la red WiFi."]);
     }
     setConnectingWifi(false);
   };
@@ -209,9 +210,9 @@ function Home() {
   // Estados nuevos para Bento Grid
   const [historyList, setHistoryList] = useState([]);
   const [consoleLogs, setConsoleLogs] = useState([
-    "⚙️ SecScan CLI v1.2.0 - Motor de Auditoría y Redes Activo.",
-    "👉 Elige un método de escaneo en los paneles interactivos del Bento Grid para inicializar...",
-    "🛡️ Listo para monitoreo continuo en subredes locales."
+    "[SYS] SecScan CLI v1.2.0 - Motor de Auditoría y Redes Activo.",
+    "[SYS] Elige un método de escaneo en los paneles interactivos del Bento Grid para inicializar...",
+    "[SEC] Listo para monitoreo continuo en subredes locales."
   ]);
 
   const { getToken } = useAuth();
@@ -280,7 +281,7 @@ function Home() {
     setScanMsg(passiveScan ? "Inicializando escaneo pasivo indetectable..." : `Conectando con el motor de escaneo activo en ${target}...`);
 
     // Iniciar consola vacía
-    setConsoleLogs([`🚀 SecScan Daemon - Conectando con el motor backend para auditar ${target}...`]);
+    setConsoleLogs([`[SYS] SecScan Daemon - Conectando con el motor backend para auditar ${target}...`]);
 
     try {
       const token = await getToken();
@@ -291,9 +292,9 @@ function Home() {
       const scanResult = await triggerN8nScan(target, token, scanId, passiveScan);
       
       if (passiveScan) {
-        setScanMsg("🤫 Modo Pasivo (ARP Caché) — Leyendo memoria local...");
+        setScanMsg("[SEC] Modo Pasivo (ARP Caché) — Leyendo memoria local...");
       } else if (scanResult.modo === "n8n") {
-        setScanMsg("⚡ Modo Turbo (n8n) — Escaneando tu red en paralelo...");
+        setScanMsg("[RUN] Modo Turbo (n8n) — Escaneando tu red en paralelo...");
       } else {
         setScanMsg("Escaneando tu red. Esperando resultados...");
       }
@@ -355,7 +356,11 @@ function Home() {
     } catch (err) {
       setScanning(false);
       setBgTaskActive(false);
-      alert("Error de conexión. ¿El backend está encendido?");
+      if (err.code === "SIN_INTERNET") {
+        alert("⚠️ Sin conexión a internet. El escaneo requiere conexión activa para registrar los resultados en la nube. Por favor, verifica tu red e inténtalo de nuevo.");
+      } else {
+        alert("Error de conexión. ¿El backend está encendido?");
+      }
     }
   };
 
@@ -454,15 +459,7 @@ function Home() {
               onClick={() => handleFullScan(false)}
               disabled={bgTaskActive}
             >
-              🚀 Iniciar Escaneo Activo
-            </button>
-            
-            <button 
-              className="bento-btn bento-btn-secondary" 
-              onClick={() => handleFullScan(true)}
-              disabled={bgTaskActive}
-            >
-              🤫 Iniciar Escaneo Pasivo
+              <Rocket size={18} className="inline-icon" style={{marginRight: '8px'}} /> Iniciar Escaneo Activo
             </button>
           </div>
 
@@ -497,11 +494,18 @@ function Home() {
             <span className="terminal-title">secscan_daemon.log</span>
           </div>
           <div className="terminal-body" id="console-logs-container">
-            {consoleLogs.map((log, i) => (
-              <div key={i} className="terminal-line">
-                <span className="terminal-prompt">$</span> {log}
-              </div>
-            ))}
+            {consoleLogs.map((log, i) => {
+              let color = "var(--text-secondary)";
+              if (log.includes("[OK]") || log.includes("[ABIERTO]"))       color = "var(--green-400)";
+              else if (log.includes("[BLOQUEADO]") || log.includes("[ERROR]")) color = "var(--red-400)";
+              else if (log.includes("[ALERTA]"))                            color = "var(--yellow-400)";
+              else if (log.includes("[HOST]") || log.includes("[DEEP-SCAN]")) color = "var(--purple-400)";
+              return (
+                <div key={i} className="terminal-line" style={{ color }}>
+                  <span className="terminal-prompt">$</span> {log}
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -533,7 +537,7 @@ function Home() {
               }}
               onClick={() => setSwitcherTab("history")}
             >
-              📊 Historial
+              <BarChart size={18} className="inline-icon" />  Historial
             </button>
             <button
               type="button"
@@ -569,7 +573,7 @@ function Home() {
                       onClick={() => navigate(`/history/${scan.scan_id}`, { state: { defaultView: "arbol" } })}
                       style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
                     >
-                      <span className="network-network-icon" style={{ fontSize: '18px' }}>🌐</span>
+                      <span className="network-network-icon" style={{ fontSize: '18px' }}><Globe size={18} className="inline-icon" /> </span>
                       <span className="network-item-name">{scan.target_ip}</span>
                     </div>
                   ))
@@ -637,7 +641,7 @@ function Home() {
 
         {/* PANEL 4: ESCANEO PASIVO EXPLICATIVO (MEDIUM CARD) */}
         <div className="bento-card bento-passive-info slide-up" style={{ animationDelay: "0.15s", padding: "20px" }}>
-          <div className="bento-badge passive-badge">🤫 ESCANEO PASIVO</div>
+          <div className="bento-badge passive-badge"><EyeOff size={14} className="inline-icon" style={{marginRight: '4px'}} /> ESCANEO PASIVO</div>
           <h3 className="bento-card-title-sm" style={{ fontSize: "15px" }}>¿Cómo funciona?</h3>
           <p className="bento-card-desc-sm" style={{ marginBottom: "12px", fontSize: "12px", lineHeight: "1.4" }}>
             El escaneo pasivo es **silencioso e indetectable** para sistemas de seguridad (IDS).
@@ -656,7 +660,7 @@ function Home() {
               </div>
             </li>
             <li className="passive-info-item" style={{ fontSize: "12px" }}>
-              <span style={{ fontSize: "14px" }}>⚡</span>
+              <span style={{ fontSize: "14px" }}><Zap size={14} className="inline-icon" /></span>
               <div>
                 <strong>Veloz:</strong> Completa el mapa y registra los equipos en menos de 2s.
               </div>
@@ -666,7 +670,7 @@ function Home() {
 
         {/* PANEL 5: ESCANEO ESPECÍFICO / TARGET CIDR (SMALL CARD) */}
         <div className="bento-card bento-target slide-up" style={{ animationDelay: "0.2s" }}>
-          <div className="bento-badge target-badge">🎯 OBJETIVO ESPECÍFICO</div>
+          <div className="bento-badge target-badge"><Crosshair size={18} className="inline-icon" />  OBJETIVO ESPECÍFICO</div>
           <h3 className="bento-card-title-sm">Escanear Objetivo</h3>
           <p className="bento-card-desc-sm" style={{ marginBottom: "14px" }}>
             Audita una IP única o un rango de subred CIDR (ej: 192.168.1.1 o 192.168.1.0/24).
@@ -698,7 +702,7 @@ function Home() {
           onClick={() => navigate("/history")}
         >
           <div className="history-quicklink-text">
-            <div className="history-quicklink-title">📊 Ver Auditorías Históricas</div>
+            <div className="history-quicklink-title"><BarChart size={18} className="inline-icon" />  Ver Auditorías Históricas</div>
             <div className="history-quicklink-desc">
               Accede al panel completo con todas las bitácoras históricas y mapas de red anteriores.
             </div>
@@ -790,7 +794,7 @@ function Home() {
                   onClick={handleConnectWifi}
                   disabled={!(selectedWifi.auth.toLowerCase().includes("open") || selectedWifi.auth.toLowerCase().includes("abierta") || selectedWifi.auth.toLowerCase().includes("none")) && !wifiPassword.trim()}
                 >
-                  ⚡ Conectar
+                  <Zap size={16} className="inline-icon" style={{marginRight: '6px'}} /> Conectar
                 </button>
               </div>
             )}
@@ -902,7 +906,7 @@ function Results() {
         </div>
       ) : (
         <div className="empty-state">
-          <div className="empty-state-icon">🛡️</div>
+          <div className="empty-state-icon"><Shield size={16} className="inline-icon" /> </div>
           <p>No se encontraron vulnerabilidades con versión detectable en este escaneo.</p>
         </div>
       )}
@@ -994,6 +998,16 @@ function Historial() {
     };
   }, [loadData, isProcessing]);
 
+  useEffect(() => {
+    if (!loading && location.state?.autoPrint) {
+      setTimeout(() => {
+        window.print();
+        // Clear state so it doesn't reprint on refresh
+        window.history.replaceState({}, '');
+      }, 800);
+    }
+  }, [loading, location.state]);
+
   const getScoreColor = (score) => {
     if (score >= 9.0) return "#ff4757"; // Crítico
     if (score >= 7.0) return "#ffa502"; // Alto
@@ -1032,12 +1046,17 @@ function Historial() {
 
   return (
     <div className="page-container fade-in">
-      <div className="historial-header">
-        <button className="btn btn-back" onClick={() => navigate("/history")}>
-          ← Volver
+      <div className="historial-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <button className="btn btn-back" onClick={() => navigate("/history")}>
+            ← Volver
+          </button>
+          <h1>Detalles del Escaneo</h1>
+          <p>Datos almacenados en Firebase Firestore</p>
+        </div>
+        <button className="btn btn-primary" onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          🖨️ Exportar a PDF / Imprimir
         </button>
-        <h1>Detalles del Escaneo</h1>
-        <p>Datos almacenados en Firebase Firestore</p>
       </div>
 
       <div className="results-summary">
@@ -1119,7 +1138,7 @@ function Historial() {
       {/* ===== VISTA LISTA (existente) ===== */}
       {vista === "lista" && (
         <>
-      <h2 style={{ marginBottom: 20, fontSize: 20 }}>Dispositivos</h2>
+          <h2 className="print-section-devices" style={{ marginBottom: 20, fontSize: 20 }}>Dispositivos</h2>
       {devices && devices.length > 0 ? (
         <div className="device-list" style={{ marginBottom: 40 }}>
           {devices.map((d, i) => (
@@ -1143,7 +1162,7 @@ function Historial() {
                         {getDeviceIcon(d)} Dispositivo Oculto
                       </span>
                   }
-                  {d.es_nuevo && <span className="badge-new">🚨 NUEVO</span>}
+                  {d.es_nuevo && <span className="badge-new"><AlertTriangle size={18} className="inline-icon" />  NUEVO</span>}
                 </div>
                 <div className="device-mac">
                   {d.fabricante && d.fabricante !== "Desconocido" ? `⚙️ Fabricante: ${d.fabricante}` : `MAC: ${d.mac}`}
@@ -1181,7 +1200,7 @@ function Historial() {
 
       {vista === "lista" && vulns && vulns.length > 0 && (
         <>
-          <h2 style={{ marginBottom: 20, fontSize: 20 }}>Vulnerabilidades Detectadas</h2>
+          <h2 className="print-section-vulns" style={{ marginBottom: 20, fontSize: 20 }}>Vulnerabilidades Detectadas</h2>
           <div className="vuln-list">
             {vulns.map((v, i) => (
               <div 
