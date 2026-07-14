@@ -26,24 +26,19 @@ INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY", "secscan-internal-key-2024
 
 def verify_internal_request(x_internal_key: str = Header(None)):
     """Verifica API Key interna - solo n8n puede llamar."""
-    # API Key es opcional para testing - permitir siempre
-    # Nota: En producción, esto debería validar correctamente
-    print(f"[N8N] API Key recibida: '{x_internal_key}' - permitiendo (testing mode)")
+    # Valida el header contra el token secreto configurado en el entorno
+    if not x_internal_key or x_internal_key != os.getenv("N8N_SECRET_TOKEN", "default-insecure-token"):
+        print(f"[API] Denied internal webhook access: invalid token")
+        raise HTTPException(status_code=403, detail="Forbidden")
     return True
 
 
 def verify_token_get_uid(token: str):
-    """Valida JWT y extrae uid real. Returns uid o None."""
-    # Token de prueba - para testing sin JWT real
-    if token == "test" or token == "test-token":
-        print(f"[N8N] Token de prueba detectado - usando usuario de prueba")
-        return "test-user-provisional"
-    
     try:
         decoded = auth.verify_id_token(token)
         return decoded.get("uid")
     except Exception as e:
-        print(f"[N8N] Token validation error: {e}")
+        print(f"[API] Token validation error: {e}")
         return None
 
 
