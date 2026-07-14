@@ -9,20 +9,16 @@ from core.scanner import ScannerEngine, get_local_cidr, get_local_ip, get_local_
 from core.cve_client import CVEClient
 from services.db_service import DatabaseService
 
-# Caché en memoria global recopilada por el demonio pasivo de fondo
 _passive_device_cache = {}
 _last_subnet = None
 _last_discovery_time = 0.0
 _daemon_started = False
 _daemon_lock = threading.Lock()
 
-# Contador de escaneos activos en curso (discover + deep-scan)
-# El daemon pausa mientras sea > 0. Contador thread-safe.
 _active_scan_count = 0
 _active_scan_count_lock = threading.Lock()
 _last_active_time = 0.0
 
-# Seguimiento de la duración de la fase deep-scan
 _deep_scan_active_count = 0
 _deep_scan_start_time = 0.0
 _deep_scan_lock = threading.Lock()
@@ -43,12 +39,10 @@ def run_passive_background_worker():
     global _last_subnet, _passive_device_cache, _last_discovery_time
     global _active_scan_count, _active_scan_count_lock, _last_active_time
     
-    # Espera inicial para la estabilización de interfaces de red
     time.sleep(2)
     
     _paused_logged = False
     while True:
-        # --- Pausa cortés: esperar si hay cualquier escaneo (discover o deep) en curso ---
         with _active_scan_count_lock:
             if _active_scan_count > 0:
                 _last_active_time = time.time()
@@ -77,7 +71,6 @@ def run_passive_background_worker():
                 _passive_device_cache.clear()
                 _last_discovery_time = 0.0
             
-            # --- DETERMINAR SI NECESITAMOS REALIZAR EL BARRIDO DE DESCUBRIMIENTO ---
             ahora = time.time()
             necesita_descubrimiento = False
             
@@ -86,7 +79,6 @@ def run_passive_background_worker():
             elif ahora - _last_discovery_time > 300: # 5 minutos
                 necesita_descubrimiento = True
             else:
-                # Si no quedan dispositivos pendientes de escanear en la caché
                 unscanned_exists = any(not data.get("deep_scan_status") for data in _passive_device_cache.values())
                 if not unscanned_exists:
                     necesita_descubrimiento = True
@@ -96,14 +88,12 @@ def run_passive_background_worker():
                 _last_discovery_time = ahora
                 prefix = current_cidr.split('/')[0].rsplit('.', 1)[0] + '.'
                 
-                # 1. Refresco Silencioso (Ping Sweep rápido en background para poblar ARP cache)
                 try:
                     nm = nmap.PortScanner()
                     nm.scan(hosts=current_cidr, arguments='-sn -PE -T3')
                 except Exception:
                     pass
  
-                # 2. Lectura y parsing de la caché ARP local del SO
                 found_ips = set()
                 new_devices = {}
                 try:
@@ -141,7 +131,6 @@ def run_passive_background_worker():
                 except Exception as e:
                     print(f"[PassiveScanDaemon] Error leyendo tabla ARP: {e}")
  
-                # 3. Incorporar la máquina host actual a la lista
                 try:
                     local_ip = get_local_ip()
                     if local_ip not in found_ips and local_ip.startswith(prefix):
@@ -157,7 +146,6 @@ def run_passive_background_worker():
                     pass
                     
                 if new_devices:
-                    # Conservar datos de escaneo profundo previos
                     for ip, data in new_devices.items():
                         if ip in _passive_device_cache:
                             old_data = _passive_device_cache[ip]
@@ -174,7 +162,6 @@ def run_passive_background_worker():
                 
                 print(f"[PassiveScanDaemon] Ciclo de fondo finalizado. Dispositivos en caché: {len(_passive_device_cache)} | IPs: {list(_passive_device_cache.keys())}")
 
-            # 4. Escáner Pasivo Profundo (Trabajo de Hormiga)
             unscanned_ip = None
             for ip, data in _passive_device_cache.items():
                 if not data.get("deep_scan_status"):
@@ -185,7 +172,6 @@ def run_passive_background_worker():
                 print(f"[PassiveScanDaemon] Iniciando Deep-Scan silencioso en {unscanned_ip}...")
                 _passive_device_cache[unscanned_ip]["deep_scan_status"] = "scanning"
                 
-                # Instanciar motores localmente para el hilo
                 from core.scanner import ScannerEngine
                 from core.cve_client import CVEClient
                 bg_scanner = ScannerEngine()
@@ -223,7 +209,6 @@ def run_passive_background_worker():
         except Exception as e:
             print(f"[PassiveScanDaemon] Excepción en ciclo del worker: {e}")
             
-        # Espera de 30 segundos entre barridos
         time.sleep(30)
 
 
@@ -232,8 +217,6 @@ class ScanService:
         self.scanner = ScannerEngine()
         self.cve_client = CVEClient()
         self.db_service = DatabaseService()
-        # El daemon pasivo ahora se arranca únicamente en app.py (evento startup de FastAPI)
-        # para evitar duplicaciones/conflictos en procesos secundarios de Uvicorn.
 
     def set_log_cb(self, cb):
         from core.scanner import _thread_local
@@ -247,10 +230,8 @@ class ScanService:
             cb(msg)
 
     def discover(self, target_ip: str, passive: bool = False):
-        # Limpieza de input
         ip_limpia = target_ip.replace('=', '').strip() if target_ip else ''
         
-        # Auto-configuración
         if ip_limpia.lower() == "auto" or ip_limpia == "":
             ip_real = get_local_cidr()
         else:
@@ -263,11 +244,9 @@ class ScanService:
             self._log(f"🤫 [SCAN PASIVO] Retornando estado en segundo plano instantáneo para {ip_real}...")
             topology = self.scanner.fallback_to_gateway("Escaneo Pasivo en segundo plano. Descubrimiento extraído de la memoria del daemon.")
             
-            # Retornar la caché instantánea si el objetivo coincide con la red local activa
             if ip_real == _last_subnet or ip_limpia.lower() == "auto" or ip_limpia == "":
                 dispositivos = list(_passive_device_cache.values())
             else:
-                # Fallback pasivo en vivo para subredes distintas a la local activa
                 prefix = ip_real.split('/')[0].rsplit('.', 1)[0] + '.'
                 dispositivos = []
                 found_ips = set()
@@ -304,32 +283,26 @@ class ScanService:
             topology["devices"] = dispositivos
             return {"status": "ok", "dispositivos": dispositivos, "target": ip_real, "topology": topology, "passive": True}
 
-        # Escaneo Activo
         global _active_scan_count, _active_scan_count_lock, _last_active_time
 
-        # Obtener IPs activas de la caché del demonio pasivo de fondo si aplica a la subred local
         active_ips = None
         if (ip_real == _last_subnet or ip_limpia.lower() == "auto" or ip_limpia == "") and _passive_device_cache:
             active_ips = list(_passive_device_cache.keys())
             self._log(f"⚡ [DAEMON] Caché pasiva lista con {len(active_ips)} IPs — pausando daemon durante el escaneo activo.")
 
-        # Incrementar contador → daemon se pausa
         with _active_scan_count_lock:
             _active_scan_count += 1
             _last_active_time = time.time()
         try:
-            # Fase 1: Descubrir esqueleto de red con Traceroute
             topology = self.scanner.fase1_traceroute()
             advertencias = topology.get("advertencias", [])
 
-            # Extraer la IP real del Router Principal (puede ser "unknown" en redes blindadas)
             router_principal_ip = None
             for hop in topology.get("hops_privados", []):
                 if hop.get("tipo") == "router_principal" and hop.get("ip") != "unknown":
                     router_principal_ip = hop["ip"]
                     break
 
-            # Fase 2: Cascada SNMP → DHCP → Nmap fallback (Acelerado por caché)
             dispositivos = self.scanner.discover_network(
                 ip_real,
                 router_principal_ip=router_principal_ip,
@@ -342,7 +315,6 @@ class ScanService:
 
             return {"status": "ok", "dispositivos": dispositivos, "target": ip_real, "topology": topology}
         finally:
-            # Decrementar contador → daemon reanuda cuando llegue a 0
             with _active_scan_count_lock:
                 _active_scan_count -= 1
                 _last_active_time = time.time()
@@ -357,7 +329,6 @@ class ScanService:
         global _active_scan_count, _active_scan_count_lock, _last_active_time
         global _deep_scan_active_count, _deep_scan_start_time, _deep_scan_lock
         
-        # Incrementar contador: el daemon no cicla mientras haya deep-scans corriendo
         with _active_scan_count_lock:
             _active_scan_count += 1
             _last_active_time = time.time()
@@ -369,7 +340,6 @@ class ScanService:
         try:
             self._log(f"====== INICIANDO ESCANEO PARA: {ip} (user: {user_id}, scan: {scan_id}) ======")
             
-            # RELEVO CONCURRENTE: Consumo de Caché Pasiva Profunda
             cached_data = _passive_device_cache.get(ip)
             es_recuperado_cache = False
             
@@ -411,7 +381,6 @@ class ScanService:
 
             id_unico = mac_real if mac_real != "Desconocida" else ip
             
-            # Lógica de Historial e Intrusos
             doc_snap = self.db_service.get_historial_doc(id_unico, user_id)
             hora_actual = datetime.datetime.utcnow().isoformat()
             es_nuevo = False
@@ -429,7 +398,6 @@ class ScanService:
                 datos_historial = doc_snap.to_dict()
                 primera_conexion = datos_historial.get("primera_conexion", hora_actual)
                 
-            # Cálculo de Riesgo Máximo
             max_score = 0
             for puerto in puertos:
                 for v in puerto.get("vulnerabilidades", []):
@@ -452,10 +420,8 @@ class ScanService:
                 "scan_id": scan_id
             }
             
-            # 1. Guardar en vista general del usuario
             self.db_service.save_device(ip, documento, user_id)
             
-            # 2. Guardar en el histórico de este escaneo específico
             if scan_id:
                 self.db_service.save_scan_device(user_id, scan_id, ip, documento)
             
@@ -474,7 +440,6 @@ class ScanService:
             return documento
 
         finally:
-            # Decrementar contador → daemon reanuda solo cuando TODOS los deep-scans terminen
             with _active_scan_count_lock:
                 _active_scan_count -= 1
                 _last_active_time = time.time()

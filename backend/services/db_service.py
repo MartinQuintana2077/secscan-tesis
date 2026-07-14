@@ -57,7 +57,6 @@ class DatabaseService:
             raise ConnectionError("Firestore no inicializado")
         return self.db.collection("users").document(user_id)
 
-    # ==================== GESTIÓN DE COLA OFFLINE ====================
     
     def _enqueue_action(self, action_type: str, user_id: str, payload: dict):
         """Guarda una acción fallida de Firebase en la cola local de SQLite."""
@@ -70,7 +69,6 @@ class DatabaseService:
         except Exception as e:
             print(f"[DB ERROR] Error crítico al encolar acción en SQLite: {e}")
 
-    # ==================== MÉTODOS DE BASE DE DATOS (OFFLINE-FIRST) ====================
     
     def get_historial_doc(self, id_unico: str, user_id: str = ""):
         """Intenta leer historial de Firebase; si falla, lee de SQLite."""
@@ -83,7 +81,6 @@ class DatabaseService:
             user_ref = self._get_user_ref(user_id)
             doc = user_ref.collection("historial").document(id_unico).get()
             
-            # Sincronizar lectura exitosa con SQLite local
             if doc.exists:
                 data = doc.to_dict()
                 self.local_db.execute_write(
@@ -93,7 +90,6 @@ class DatabaseService:
             return doc
         except Exception as e:
             print(f"[DB READ FALLBACK] get_historial_doc para {id_unico} leyendo de SQLite por: {e}")
-            # Consultar SQLite local
             rows = self.local_db.execute_read(
                 "SELECT * FROM devices WHERE mac = ? AND user_id = ?", (id_unico, user_id)
             )
@@ -113,21 +109,16 @@ class DatabaseService:
         if not user_id:
             user_id = "anonymous"
             
-        # 1. Guardar localmente
         self.local_db.execute_write(
             "INSERT OR REPLACE INTO devices (ip, user_id, mac, fabricante, primera_conexion, estado) VALUES (?, ?, ?, ?, ?, ?)",
             (data.get("ip_inicial", id_unico), user_id, data.get("mac", id_unico), data.get("fabricante", "Desconocido"), data.get("primera_conexion"), "historial")
         )
         
-        # 2. Intentar Firebase
         try:
             if not NetworkChecker.is_online(): raise ConnectionError('Offline')
             self._save_historial_doc_to_firebase(id_unico, data, user_id)
         except Exception as e:
             print(f"[DB WRITE FALLBACK] save_historial_doc encolado por error: {e}")
-            # Guardamos como un save_device genérico de contingencia o acción personalizada.
-            # Dado que el historial también se almacena como dispositivo en la cola, usamos action_type
-            # personalizado que el SyncDaemon procesará convirtiéndolo en save_device o lo encolamos como save_device.
             self._enqueue_action("save_device", user_id, {"ip": data.get("ip_inicial", id_unico), "document": data})
 
     def _save_historial_doc_to_firebase(self, id_unico: str, data: dict, user_id: str):
@@ -138,7 +129,6 @@ class DatabaseService:
         if not user_id:
             user_id = "anonymous"
             
-        # 1. Guardar localmente
         self.local_db.execute_write(
             '''INSERT OR REPLACE INTO devices 
                (ip, user_id, mac, hostname, fabricante, total_vulnerabilidades, max_score, fecha_auditoria, estado, es_nuevo, primera_conexion, scan_id) 
@@ -148,7 +138,6 @@ class DatabaseService:
              document.get("estado"), 1 if document.get("es_nuevo") else 0, document.get("primera_conexion"), document.get("scan_id"))
         )
         
-        # 2. Intentar Firebase
         try:
             if not NetworkChecker.is_online(): raise ConnectionError('Offline')
             self._save_device_to_firebase(ip, document, user_id)
@@ -166,10 +155,8 @@ class DatabaseService:
         ip = data.get("ip", "")
         puerto = data.get("puerto", 0)
         
-        # Generamos una ID única compuesta para SQLite local
         local_id = f"{cve_id}_{user_id}_{ip}_{puerto}"
         
-        # 1. Guardar localmente
         self.local_db.execute_write(
             '''INSERT OR REPLACE INTO vulnerabilities 
                (id, cve_id, user_id, descripcion, severidad, score, ip, puerto, servicio, version, fecha_deteccion) 
@@ -178,7 +165,6 @@ class DatabaseService:
              ip, puerto, data.get("servicio"), data.get("version"), data.get("fecha_deteccion"))
         )
         
-        # 2. Intentar Firebase
         try:
             if not NetworkChecker.is_online(): raise ConnectionError('Offline')
             self._save_vulnerability_to_firebase(cve_id, data, user_id)
@@ -194,10 +180,8 @@ class DatabaseService:
         if not user_id:
             user_id = "anonymous"
             
-        # 1. Limpiar localmente
         self.local_db.execute_write("DELETE FROM devices WHERE user_id = ?", (user_id,))
         
-        # 2. Intentar Firebase
         try:
             if not NetworkChecker.is_online(): raise ConnectionError('Offline')
             self._clear_devices_to_firebase(user_id)
@@ -216,10 +200,8 @@ class DatabaseService:
         if not user_id:
             user_id = "anonymous"
             
-        # 1. Limpiar localmente
         self.local_db.execute_write("DELETE FROM vulnerabilities WHERE user_id = ?", (user_id,))
         
-        # 2. Intentar Firebase
         try:
             if not NetworkChecker.is_online(): raise ConnectionError('Offline')
             self._clear_vulnerabilities_to_firebase(user_id)
@@ -245,7 +227,6 @@ class DatabaseService:
             docs = user_ref.collection("devices").stream()
             devices = [doc.to_dict() for doc in docs]
             
-            # Sincronizar SQLite con los datos más nuevos de Firebase
             self.local_db.execute_write("DELETE FROM devices WHERE user_id = ? AND estado != 'historial'", (user_id,))
             for dev in devices:
                 self.local_db.execute_write(
@@ -289,7 +270,6 @@ class DatabaseService:
             vulns = [doc.to_dict() for doc in docs]
             vulns.sort(key=lambda x: x.get("score", 0), reverse=True)
             
-            # Sincronizar SQLite con Firebase
             self.local_db.execute_write("DELETE FROM vulnerabilities WHERE user_id = ?", (user_id,))
             for v in vulns:
                 local_id = f"{v.get('cve_id')}_{user_id}_{v.get('ip')}_{v.get('puerto', 0)}"
@@ -319,7 +299,6 @@ class DatabaseService:
                 })
             return vulns
 
-    # ==================== MÉTODOS DE IDEMPOTENCIA Y SESIONES DE ESCANEO ====================
     
     def scan_exists(self, user_id: str, scan_id: str) -> bool:
         if not user_id:
@@ -340,13 +319,11 @@ class DatabaseService:
         if not user_id:
             user_id = "anonymous"
             
-        # 1. Guardar localmente
         self.local_db.execute_write(
             "INSERT OR REPLACE INTO scans (scan_id, user_id, timestamp) VALUES (?, ?, ?)",
             (scan_id, user_id, datetime.datetime.utcnow().isoformat())
         )
         
-        # 2. Intentar Firebase
         try:
             if not NetworkChecker.is_online(): raise ConnectionError('Offline')
             self._mark_scan_processed_to_firebase(user_id, scan_id, ip)
@@ -365,15 +342,12 @@ class DatabaseService:
         if not user_id:
             user_id = "anonymous"
             
-        # 1. Guardar localmente
-        # Obtenemos los campos clave si existen en el diccionario de metadatos
         status = metadata.get("status")
         devices_found = metadata.get("devices_found")
         total_targets = metadata.get("total_targets")
         vulns_found = metadata.get("vulnerabilidades_found")
         end_time = metadata.get("end_time")
         
-        # Actualizamos dinámicamente según lo que venga en el metadata dict
         query_parts = []
         params = []
         if status is not None:
@@ -399,7 +373,6 @@ class DatabaseService:
                 tuple(params)
             )
             
-        # 2. Intentar Firebase
         try:
             if not NetworkChecker.is_online(): raise ConnectionError('Offline')
             self._update_scan_metadata_to_firebase(user_id, scan_id, metadata)
@@ -417,13 +390,11 @@ class DatabaseService:
         if amount <= 0:
             return
             
-        # 1. Guardar localmente
         self.local_db.execute_write(
             "UPDATE scans SET vulnerabilidades_found = COALESCE(vulnerabilidades_found, 0) + ? WHERE scan_id = ? AND user_id = ?",
             (amount, scan_id, user_id)
         )
         
-        # 2. Intentar Firebase
         try:
             if not NetworkChecker.is_online(): raise ConnectionError('Offline')
             self._increment_vulnerabilities_to_firebase(user_id, scan_id, amount)
@@ -442,13 +413,11 @@ class DatabaseService:
         if not user_id:
             user_id = "anonymous"
             
-        # 1. Guardar localmente
         self.local_db.execute_write(
             "UPDATE scans SET devices_found = COALESCE(devices_found, 0) + ? WHERE scan_id = ? AND user_id = ?",
             (amount, scan_id, user_id)
         )
         
-        # 2. Intentar Firebase
         try:
             if not NetworkChecker.is_online(): raise ConnectionError('Offline')
             self._increment_devices_to_firebase(user_id, scan_id, amount)
@@ -468,7 +437,6 @@ class DatabaseService:
             user_id = "anonymous"
         entry = f"[{datetime.datetime.utcnow().strftime('%H:%M:%S')}] {message}"
         
-        # 1. Guardar localmente (leemos logs actuales del scan, anexamos y re-guardamos en SQLite)
         try:
             rows = self.local_db.execute_read("SELECT logs_json FROM scans WHERE scan_id = ? AND user_id = ?", (scan_id, user_id))
             logs = []
@@ -476,7 +444,6 @@ class DatabaseService:
                 logs = json.loads(rows[0]["logs_json"])
             logs.append(entry)
             
-            # Si no existe la cabecera del escaneo local, la creamos al vuelo
             self.local_db.execute_write(
                 '''INSERT INTO scans (scan_id, user_id, logs_json, status) VALUES (?, ?, ?, ?)
                    ON CONFLICT(scan_id, user_id) DO UPDATE SET logs_json = excluded.logs_json''',
@@ -485,7 +452,6 @@ class DatabaseService:
         except Exception as ex:
             print(f"[DB LOCAL LOG ERROR] Falló guardar log en SQLite: {ex}")
             
-        # 2. Intentar Firebase
         try:
             if not NetworkChecker.is_online(): raise ConnectionError('Offline')
             self._append_scan_log_to_firebase(user_id, scan_id, message)
@@ -504,7 +470,6 @@ class DatabaseService:
     def create_user_profile(self, user_id: str, email: str = ""):
         if not user_id:
             user_id = "anonymous"
-        # Para simplificar, los perfiles de usuario se guardan directo a Firebase (requieren login online).
         try:
             user_ref = self._get_user_ref(user_id)
             user_ref.collection("profile").document("data").set({
@@ -519,13 +484,11 @@ class DatabaseService:
         if not user_id:
             user_id = "anonymous"
             
-        # 1. Guardar localmente
         self.local_db.execute_write(
             "INSERT OR REPLACE INTO scan_devices (scan_id, ip, user_id, device_data_json) VALUES (?, ?, ?, ?)",
             (scan_id, ip, user_id, json.dumps(data))
         )
         
-        # 2. Intentar Firebase
         try:
             if not NetworkChecker.is_online(): raise ConnectionError('Offline')
             self._save_scan_device_to_firebase(user_id, scan_id, ip, data)
@@ -552,7 +515,6 @@ class DatabaseService:
                 data["id"] = doc.id
                 scans.append(data)
                 
-            # Sincronizar SQLite con Firebase
             for s in scans:
                 self.local_db.execute_write(
                     '''INSERT INTO scans 
@@ -595,7 +557,6 @@ class DatabaseService:
                 data = doc.to_dict()
                 data["id"] = doc.id
                 
-                # Sincronizar local
                 self.local_db.execute_write(
                     '''INSERT INTO scans 
                        (scan_id, user_id, status, devices_found, total_targets, vulnerabilidades_found, timestamp, end_time, logs_json, topology_json) 
@@ -646,7 +607,6 @@ class DatabaseService:
             docs = user_ref.collection("scans").document(scan_id).collection("devices").stream()
             devices = [doc.to_dict() for doc in docs]
             
-            # Sincronizar SQLite local
             self.local_db.execute_write("DELETE FROM scan_devices WHERE scan_id = ? AND user_id = ?", (scan_id, user_id))
             for dev in devices:
                 self.local_db.execute_write(

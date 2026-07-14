@@ -11,7 +11,6 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     """
     token = credentials.credentials
     try:
-        # Verificamos que el token sea legítimo y no haya expirado
         decoded_token = auth.verify_id_token(token)
         return decoded_token
     except Exception as e:

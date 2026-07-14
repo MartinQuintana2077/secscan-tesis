@@ -16,15 +16,12 @@ class LocalDBManager:
         return cls._instance
 
     def _init_db(self):
-        # Localización de la base de datos en la carpeta backend/
         ruta_actual = os.path.dirname(os.path.abspath(__file__))
         self.db_path = os.path.join(ruta_actual, '..', 'secscan_local.db')
         
-        # Crear tablas si no existen
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        # 1. Tabla de Dispositivos (Espejo de Firestore collection "devices")
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS devices (
                 ip TEXT,
@@ -43,7 +40,6 @@ class LocalDBManager:
             )
         ''')
 
-        # 2. Tabla de Vulnerabilidades (Espejo de Firestore collection "vulnerabilities")
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS vulnerabilities (
                 id TEXT PRIMARY KEY,
@@ -60,7 +56,6 @@ class LocalDBManager:
             )
         ''')
 
-        # 3. Tabla de Escaneos (Espejo de Firestore collection "scans")
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS scans (
                 scan_id TEXT,
@@ -77,7 +72,6 @@ class LocalDBManager:
             )
         ''')
 
-        # 4. Tabla de Dispositivos por Escaneo Específico (Espejo de subcolección scans/devices)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS scan_devices (
                 scan_id TEXT,
@@ -88,7 +82,6 @@ class LocalDBManager:
             )
         ''')
 
-        # 5. Tabla de Cola de Sincronización Offline (transacciones pendientes)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS offline_queue (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -99,7 +92,6 @@ class LocalDBManager:
             )
         ''')
 
-        # 6. Tabla de Caché de CVEs (NVD API)
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS cve_cache (
                 keyword TEXT PRIMARY KEY,
@@ -118,7 +110,6 @@ class LocalDBManager:
         conn.row_factory = sqlite3.Row
         return conn
 
-    # Métodos genéricos para facilitar lecturas/escrituras rápidas con Locks
     def execute_write(self, query, params=()):
         with self._lock:
             conn = self.get_connection()

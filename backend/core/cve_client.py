@@ -22,14 +22,11 @@ class CVEClient:
         
         Retorna una lista de diccionarios con las vulnerabilidades encontradas.
         """
-        # Si Nmap no pudo detectar la versión, no tiene sentido consultar la API
         if not version or version.strip() == "":
             return []
         
-        # Construimos la palabra clave de búsqueda combinando servicio + versión
         keyword = f"{nombre_servicio} {version}".strip()
         
-        # 1. Intentar obtener de la caché local de SQLite
         try:
             local_db = LocalDBManager()
             cache_rows = local_db.execute_read(
@@ -41,7 +38,6 @@ class CVEClient:
         except Exception as e:
             print(f"[CVE CACHE ERROR] Falló lectura de caché local: {e}")
 
-        # Parámetros oficiales de la API NVD v2.0
         parametros = {
             "keywordSearch": keyword,
             "resultsPerPage": 5  # Limitamos a 5 resultados para no saturar la respuesta
@@ -50,13 +46,10 @@ class CVEClient:
         try:
             print(f"🔍 Consultando NVD para: {keyword}...")
             
-            # La API pública del NVD tiene rate-limiting (máx ~5 peticiones por 30 seg sin API Key)
-            # Añadimos un pequeño delay para respetar los límites del servidor del gobierno
             time.sleep(1.5)
             
             respuesta = requests.get(self.BASE_URL, params=parametros, timeout=30)
             
-            # Si el servidor responde con error, retornamos vacío en vez de crashear
             if respuesta.status_code != 200:
                 print(f"⚠️ NVD respondió con código {respuesta.status_code}")
                 return []
@@ -64,14 +57,11 @@ class CVEClient:
             datos = respuesta.json()
             vulnerabilidades = []
             
-            # Recorremos cada vulnerabilidad que nos devolvió el gobierno
             for item in datos.get("vulnerabilities", []):
                 cve_data = item.get("cve", {})
                 
-                # Extraemos el ID oficial (ej: CVE-2021-41773)
                 cve_id = cve_data.get("id", "Desconocido")
                 
-                # Extraemos la descripción (siempre viene en inglés)
                 descripciones = cve_data.get("descriptions", [])
                 descripcion = "Sin descripción"
                 for desc in descripciones:
@@ -79,12 +69,10 @@ class CVEClient:
                         descripcion = desc.get("value", "Sin descripción")
                         break
                 
-                # Extraemos la severidad (score CVSS) - Buscamos en métricas v3.1 o v3.0
                 severidad = "No disponible"
                 score = 0.0
                 metricas = cve_data.get("metrics", {})
                 
-                # Intentamos CVSS v3.1 primero, luego v3.0, y finalmente v2 (para CVEs antiguos)
                 metricas_v3 = metricas.get("cvssMetricV31", metricas.get("cvssMetricV30", []))
                 metricas_v2 = metricas.get("cvssMetricV2", [])
                 
@@ -95,7 +83,6 @@ class CVEClient:
                 elif metricas_v2:
                     cvss_data = metricas_v2[0].get("cvssData", {})
                     score = cvss_data.get("baseScore", 0.0)
-                    # CVSS v2 no siempre trae 'baseSeverity' en texto, lo calculamos si falta
                     severidad = metricas_v2[0].get("baseSeverity", "")
                     if not severidad:
                         if score >= 7.0: severidad = "HIGH"
@@ -111,7 +98,6 @@ class CVEClient:
             
             print(f"✅ Se encontraron {len(vulnerabilidades)} CVEs para '{keyword}'")
             
-            # 2. Guardar en caché local
             try:
                 local_db.execute_write(
                     "INSERT OR REPLACE INTO cve_cache (keyword, cves_json, cached_at) VALUES (?, ?, ?)",

@@ -6,13 +6,11 @@ import uuid
 
 api_router = APIRouter()
 
-# Unificamos todas las rutas bajo el prefijo /api
 api_router.include_router(scans.router, tags=["scans"])
 api_router.include_router(devices.router, tags=["devices"])
 api_router.include_router(system.router, tags=["system"])
 api_router.include_router(wifi.router, prefix="/wifi", tags=["wifi"])
 
-# ========== RUTAS INTERNAS PARA N8N (Versión Segura) ==========
 from services.scan_service import ScanService
 from services.db_service import DatabaseService
 
@@ -20,7 +18,6 @@ n8n_router = APIRouter()
 _scan_service = ScanService()
 _db_service = DatabaseService()
 
-# API Key interna
 INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY", "secscan-internal-key-2024")
 
 
@@ -49,15 +46,12 @@ def n8n_discover(request: dict):
     print(f"\n[N8N -> BACKEND] Petición de DISCOVER recibida")
     print(f"  - Request Body: {request}")
     
-    # 1. Validar API Key
     verify_internal_request()
     
-    # 2. Extraer datos del request (manejar valores de n8n o directos)
     target_ip = request.get("target_ip", "auto")
     token = request.get("token", "")
     scan_id = request.get("scan_id", "")
     
-    # Si los valores vienen como expresiones de n8n (no evaluadas), usar valores por defecto
     if isinstance(target_ip, str) and target_ip.startswith("{{"):
         print("[N8N] Warn: target_ip es expresion no evaluada, usando 'auto'")
         target_ip = "auto"
@@ -67,7 +61,6 @@ def n8n_discover(request: dict):
         scan_id = "legacy-scan-" + str(uuid.uuid4())[:8]
         print(f"[N8N] Generado scan_id temporal: {scan_id}")
     
-    # 3. VALIDAR JWT y obtener uid REAL
     uid_real = verify_token_get_uid(token)
     
     if not uid_real:
@@ -77,16 +70,13 @@ def n8n_discover(request: dict):
     print(f"  ✅ [OK] Usuario identificado: {uid_real}")
 
     
-    # 4. Check idempotencia (evitar duplicados)
     if scan_id and _db_service.scan_exists(uid_real, scan_id):
         print(f"[N8N] Scan {scan_id} ya procesado - ignorando")
         return {"status": "already_processed", "scan_id": scan_id}
     
-    # 5. Limpiar datos del usuario (usando uid REAL)
     _db_service.clear_devices(uid_real)
     _db_service.clear_vulnerabilities(uid_real)
     
-    # 6. Ejecutar escaneo
     _scan_service.set_log_cb(lambda msg: _db_service.append_scan_log(uid_real, scan_id, msg))
     result = _scan_service.discover(target_ip)
     _scan_service.set_log_cb(None)
@@ -121,10 +111,8 @@ def n8n_discover(request: dict):
 def n8n_deep_scan(ip: str, request: dict = None):
     print(f"\n[N8N -> BACKEND] Petición de DEEP-SCAN recibida para IP: {ip}")
     
-    # 1. Validar API Key
     verify_internal_request()
     
-    # 2. Extraer datos (manejar valores de n8n si no están evaluados)
     token = ""
     scan_id = ""
     if request:
@@ -134,7 +122,6 @@ def n8n_deep_scan(ip: str, request: dict = None):
     if not scan_id:
         scan_id = "legacy-scan-" + str(uuid.uuid4())[:8]
     
-    # 3. VALIDAR JWT y obtener uid REAL
     uid_real = verify_token_get_uid(token)
     
     if not uid_real:
@@ -144,23 +131,16 @@ def n8n_deep_scan(ip: str, request: dict = None):
     print(f"  ✅ [OK] Escaneando para usuario: {uid_real} (ScanId: {scan_id})")
 
     
-    # 4. Check idempotencia
     if scan_id and _db_service.scan_exists(uid_real, scan_id):
-        # Ojo: si es deep-scan, permitimos procesar si es una IP distinta, 
-        # pero como el scan_id es global por escaneo de red, 
-        # mejor solo checkeamos el status del documento de scan.
         pass
     
-    # 5. Ejecutar deep-scan (usando uid REAL y scan_id)
     _scan_service.set_log_cb(lambda msg: _db_service.append_scan_log(uid_real, scan_id, msg))
     detalle = _scan_service.deep_scan(ip, uid_real, scan_id)
     _scan_service.set_log_cb(None)
     
-    # 6. Marcar como procesado (idempotencia por IP) e incrementar vulnerabilidades
     if scan_id:
         _db_service.mark_scan_processed(uid_real, scan_id, ip)
         
-        # Incrementar contadores dinámicamente
         _db_service.increment_devices(uid_real, scan_id, 1)
         
         total_vulns = detalle.get("total_vulnerabilidades", 0)
