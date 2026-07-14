@@ -1,18 +1,61 @@
-# Entornos Virtuales
+# =========================================
+# ENTORNOS VIRTUALES
+# =========================================
 venv/
 env/
+.venv/
 .env
 
-# Compilados de Python
+# =========================================
+# CREDENCIALES Y ARCHIVOS SENSIBLES
+# =========================================
+# ¡NUNCA subir credenciales de Firebase!
+firebase_admin.json
+*credentials*
+*.pem
+*.key
+.env.*
+
+# =========================================
+# COMPILADOS DE PYTHON
+# =========================================
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
 
-# Bases de Datos Antiguas
+# =========================================
+# BASES DE DATOS LOCALES
+# =========================================
 *.sqlite3
 *.db
-secscan.db
+secscan_local.db
 
-# Credenciales críticas de Firebase (¡NUNCA SE SUBEN A GITHUB!)
-*credentials*
-firebase_admin.json
+# =========================================
+# FRONTEND — BUILD Y DEPENDENCIAS
+# =========================================
+frontend/node_modules/
+frontend/dist/
+node_modules/
+dist/
+
+# =========================================
+# SISTEMA OPERATIVO
+# =========================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =========================================
+# IDEs Y EDITORES
+# =========================================
+.vscode/settings.json
+.idea/
+*.suo
+*.user
+
+# =========================================
+# LOGS
+# =========================================
+*.log
+logs/

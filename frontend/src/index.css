@@ -1349,10 +1349,10 @@ ul { list-style: none; padding: 0; margin: 0; }
   border: 1px solid var(--border-base);
   border-radius: 12px;
   padding: 16px 20px;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 100px 100px 180px;
   align-items: center;
   gap: 16px;
-  justify-content: space-between;
   cursor: pointer;
   transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
 }
@@ -2653,3 +2653,73 @@ ul { list-style: none; padding: 0; margin: 0; }
   }
 }
 
+/* =========================================
+   PRINT STYLES FOR SCAN DETAILS
+   ========================================= */
+@media print {
+  /* Evitar que se impriman los menús y botones */
+  .navbar, .view-toggle, .btn-back, .btn-primary {
+    display: none !important;
+  }
+
+  /* Resetear márgenes y colores base de la página para impresión */
+  body, .page-container {
+    background: white !important;
+    color: black !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Darle color negro a todos los textos generales, exceptuando colores específicos */
+  h1, h2, p, .summary-card-label, .device-mac, .device-date, .device-stat-label, .vuln-description {
+    color: #333 !important;
+  }
+
+  /* Evitar que las tarjetas se corten a la mitad en el salto de página */
+  .device-card, .vuln-card, .summary-card, .capsule-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    border: 1px solid #ddd !important;
+    box-shadow: none !important;
+  }
+
+  /* 
+   * FORZAR SALTOS DE PÁGINA
+   * La página 1 mostrará el Header + Resultados (results-summary).
+   * La página 2 mostrará la lista de dispositivos.
+   * La página 3 mostrará la lista de vulnerabilidades.
+   */
+  .print-section-devices {
+    break-before: page !important;
+    page-break-before: always !important;
+    margin-top: 0 !important;
+    padding-top: 20px !important;
+  }
+
+  .print-section-vulns {
+    break-before: page !important;
+    page-break-before: always !important;
+    margin-top: 0 !important;
+    padding-top: 20px !important;
+  }
+
+  /* Optimizar las tarjetas de vulnerabilidad y dispositivos quitando fondos oscuros */
+  .device-card {
+    background: #f9f9f9 !important;
+  }
+  
+  .vuln-card {
+    background: #fffafa !important; /* Ligeramente distinto para diferenciar */
+    border-left-width: 4px !important;
+  }
+
+  /* Mostrar consola en caso de que esté activa */
+  .bento-terminal {
+    background: #f0f0f0 !important;
+    color: #000 !important;
+    border: 1px solid #ccc !important;
+  }
+  .terminal-line {
+    color: #000 !important;
+  }
+}

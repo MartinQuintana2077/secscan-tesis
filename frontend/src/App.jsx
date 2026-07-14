@@ -1,4 +1,4 @@
-import { Home as HomeIcon, BarChart, LogOut, Shield, Crosshair, Flame, Radio, Globe, Monitor, Plug, Folder, Clock, AlertTriangle, Activity } from "lucide-react";
+import { Home as HomeIcon, BarChart, LogOut, Shield, Crosshair, Flame, Radio, Globe, Monitor, Plug, Folder, Clock, AlertTriangle, Activity, Rocket, EyeOff, Zap } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import {
   BrowserRouter as Router,
@@ -459,7 +459,7 @@ function Home() {
               onClick={() => handleFullScan(false)}
               disabled={bgTaskActive}
             >
-              [SYS] Iniciar Escaneo Activo
+              <Rocket size={18} className="inline-icon" style={{marginRight: '8px'}} /> Iniciar Escaneo Activo
             </button>
           </div>
 
@@ -494,11 +494,18 @@ function Home() {
             <span className="terminal-title">secscan_daemon.log</span>
           </div>
           <div className="terminal-body" id="console-logs-container">
-            {consoleLogs.map((log, i) => (
-              <div key={i} className="terminal-line">
-                <span className="terminal-prompt">$</span> {log}
-              </div>
-            ))}
+            {consoleLogs.map((log, i) => {
+              let color = "var(--text-secondary)";
+              if (log.includes("[OK]") || log.includes("[ABIERTO]"))       color = "var(--green-400)";
+              else if (log.includes("[BLOQUEADO]") || log.includes("[ERROR]")) color = "var(--red-400)";
+              else if (log.includes("[ALERTA]"))                            color = "var(--yellow-400)";
+              else if (log.includes("[HOST]") || log.includes("[DEEP-SCAN]")) color = "var(--purple-400)";
+              return (
+                <div key={i} className="terminal-line" style={{ color }}>
+                  <span className="terminal-prompt">$</span> {log}
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -634,7 +641,7 @@ function Home() {
 
         {/* PANEL 4: ESCANEO PASIVO EXPLICATIVO (MEDIUM CARD) */}
         <div className="bento-card bento-passive-info slide-up" style={{ animationDelay: "0.15s", padding: "20px" }}>
-          <div className="bento-badge passive-badge">[SEC] ESCANEO PASIVO</div>
+          <div className="bento-badge passive-badge"><EyeOff size={14} className="inline-icon" style={{marginRight: '4px'}} /> ESCANEO PASIVO</div>
           <h3 className="bento-card-title-sm" style={{ fontSize: "15px" }}>¿Cómo funciona?</h3>
           <p className="bento-card-desc-sm" style={{ marginBottom: "12px", fontSize: "12px", lineHeight: "1.4" }}>
             El escaneo pasivo es **silencioso e indetectable** para sistemas de seguridad (IDS).
@@ -653,7 +660,7 @@ function Home() {
               </div>
             </li>
             <li className="passive-info-item" style={{ fontSize: "12px" }}>
-              <span style={{ fontSize: "14px" }}>[RUN]</span>
+              <span style={{ fontSize: "14px" }}><Zap size={14} className="inline-icon" /></span>
               <div>
                 <strong>Veloz:</strong> Completa el mapa y registra los equipos en menos de 2s.
               </div>
@@ -787,7 +794,7 @@ function Home() {
                   onClick={handleConnectWifi}
                   disabled={!(selectedWifi.auth.toLowerCase().includes("open") || selectedWifi.auth.toLowerCase().includes("abierta") || selectedWifi.auth.toLowerCase().includes("none")) && !wifiPassword.trim()}
                 >
-                  [RUN] Conectar
+                  <Zap size={16} className="inline-icon" style={{marginRight: '6px'}} /> Conectar
                 </button>
               </div>
             )}
@@ -991,6 +998,16 @@ function Historial() {
     };
   }, [loadData, isProcessing]);
 
+  useEffect(() => {
+    if (!loading && location.state?.autoPrint) {
+      setTimeout(() => {
+        window.print();
+        // Clear state so it doesn't reprint on refresh
+        window.history.replaceState({}, '');
+      }, 800);
+    }
+  }, [loading, location.state]);
+
   const getScoreColor = (score) => {
     if (score >= 9.0) return "#ff4757"; // Crítico
     if (score >= 7.0) return "#ffa502"; // Alto
@@ -1029,12 +1046,17 @@ function Historial() {
 
   return (
     <div className="page-container fade-in">
-      <div className="historial-header">
-        <button className="btn btn-back" onClick={() => navigate("/history")}>
-          ← Volver
+      <div className="historial-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <button className="btn btn-back" onClick={() => navigate("/history")}>
+            ← Volver
+          </button>
+          <h1>Detalles del Escaneo</h1>
+          <p>Datos almacenados en Firebase Firestore</p>
+        </div>
+        <button className="btn btn-primary" onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          🖨️ Exportar a PDF / Imprimir
         </button>
-        <h1>Detalles del Escaneo</h1>
-        <p>Datos almacenados en Firebase Firestore</p>
       </div>
 
       <div className="results-summary">
@@ -1116,7 +1138,7 @@ function Historial() {
       {/* ===== VISTA LISTA (existente) ===== */}
       {vista === "lista" && (
         <>
-      <h2 style={{ marginBottom: 20, fontSize: 20 }}>Dispositivos</h2>
+          <h2 className="print-section-devices" style={{ marginBottom: 20, fontSize: 20 }}>Dispositivos</h2>
       {devices && devices.length > 0 ? (
         <div className="device-list" style={{ marginBottom: 40 }}>
           {devices.map((d, i) => (
@@ -1178,7 +1200,7 @@ function Historial() {
 
       {vista === "lista" && vulns && vulns.length > 0 && (
         <>
-          <h2 style={{ marginBottom: 20, fontSize: 20 }}>Vulnerabilidades Detectadas</h2>
+          <h2 className="print-section-vulns" style={{ marginBottom: 20, fontSize: 20 }}>Vulnerabilidades Detectadas</h2>
           <div className="vuln-list">
             {vulns.map((v, i) => (
               <div 

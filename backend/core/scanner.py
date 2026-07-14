@@ -604,18 +604,34 @@ class ScannerEngine:
             return {"ip": ip_target, "puertos": []}
             
         puertos_descubiertos = []
+        puertos_bloqueados = []
+        
+        # Razones técnicas de por qué un puerto aparece como filtrado
+        RAZONES_FILTRADO = {
+            "filtered": "Bloqueado por firewall — los paquetes de sondeo son descartados sin respuesta (DROP rule activa)",
+            "closed":   "Puerto cerrado — el sistema responde con TCP RST, confirmando que no hay servicio activo",
+            "open|filtered": "Ambiguo — el host no respondió al sondeo UDP/TCP; posible firewall stateless o pérdida de paquetes",
+        }
         
         # Si encuentra puertos TCP
         if 'tcp' in self.nm[ip_target]:
             for port in self.nm[ip_target]['tcp'].keys():
                 port_data = self.nm[ip_target]['tcp'][port]
-                # Solo guardamos los puertos confirmados como "abiertos"
-                if port_data['state'] == 'open':
+                state = port_data['state']
+                if state == 'open':
                     puertos_descubiertos.append({
                         "puerto": port,
                         "protocolo": "TCP",
-                        "servicio": port_data['name'],   # ej. 'http', 'smb'
-                        "version": port_data['version']  # ej. 'Apache 2.4.49'
+                        "servicio": port_data['name'],
+                        "version": port_data['version']
+                    })
+                elif state in ('filtered', 'closed', 'open|filtered'):
+                    puertos_bloqueados.append({
+                        "puerto": port,
+                        "protocolo": "TCP",
+                        "servicio": port_data['name'] or "desconocido",
+                        "estado": state,
+                        "razon": RAZONES_FILTRADO.get(state, f"Estado desconocido: {state}")
                     })
                     
         mac = self.nm[ip_target]['addresses'].get('mac', 'Desconocida')
@@ -656,21 +672,27 @@ class ScannerEngine:
             except Exception:
                 pass
             
+        # Loguear resumen de puertos en la consola de auditoría
+        if puertos_descubiertos:
+            self._log(f"[PUERTOS ABIERTOS] {ip_target}: {len(puertos_descubiertos)} servicio(s) expuesto(s):")
+            for p in puertos_descubiertos:
+                ver = f" ({p['version']}" + ")" if p['version'] else ""
+                self._log(f"  [ABIERTO]   TCP/{p['puerto']}  {p['servicio'].upper()}{ver}")
+        else:
+            self._log(f"[PUERTOS ABIERTOS] {ip_target}: Sin servicios expuestos detectados en top-100 puertos.")
+
+        if puertos_bloqueados:
+            self._log(f"[PUERTOS BLOQUEADOS] {ip_target}: {len(puertos_bloqueados)} puerto(s) con acceso restringido:")
+            for p in puertos_bloqueados:
+                self._log(f"  [BLOQUEADO] TCP/{p['puerto']}  {p['servicio'].upper() if p['servicio'] else 'N/A'}  — {p['razon']}")
+        
         _elapsed_deep = time.perf_counter() - _t_deep
-        self._log(f"[DEEP-SCAN] ✅ {ip_target} completado en {_elapsed_deep:.2f}s | Puertos abiertos: {len(puertos_descubiertos)}")
+        self._log(f"[DEEP-SCAN] Completado {ip_target} en {_elapsed_deep:.2f}s | Abiertos: {len(puertos_descubiertos)} | Bloqueados: {len(puertos_bloqueados)}")
         return {
             "ip": ip_target,
             "mac": mac,
             "hostname": hostname,
             "fabricante": fabricante,
-            "puertos_abiertos": puertos_descubiertos
+            "puertos_abiertos": puertos_descubiertos,
+            "puertos_bloqueados": puertos_bloqueados
         }
-
-# Prueba simple: Si ejecutas este archivo directamente en la consola
-if __name__ == "__main__":
-    scanner = ScannerEngine()
-    
-    print("\n--- PRUEBA FASE 1: TRACEROUTE ---")
-    resultados_traceroute = scanner.fase1_traceroute()
-    import json
-    print(json.dumps(resultados_traceroute, indent=2))

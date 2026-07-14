@@ -87,15 +87,17 @@ def _run_scan_bg(user_id: str, scan_id: str, target_ip: str, passive: bool):
         try:
             db_service.mark_scan_processed(user_id, scan_id, ip)
             
-            db_service.append_scan_log(user_id, scan_id, f"Analizando host {ip} ({dispositivo.get('fabricante', 'Desconocido')})...")
+            fabricante = dispositivo.get('fabricante', 'Desconocido') or 'Desconocido'
+            db_service.append_scan_log(user_id, scan_id, f"[HOST] Analizando {ip} ({fabricante})...")
             
             if passive:
                 detalle = {
                     "ip": ip,
                     "mac": dispositivo.get("mac", "Desconocida"),
                     "hostname": dispositivo.get("hostname", ""),
-                    "fabricante": dispositivo.get("fabricante", "Desconocido") or "Desconocido",
+                    "fabricante": fabricante,
                     "puertos_abiertos": [],
+                    "puertos_bloqueados": [],
                     "total_vulnerabilidades": 0,
                     "max_score": 0.0,
                     "fecha_auditoria": datetime.datetime.utcnow().isoformat(),
@@ -108,18 +110,38 @@ def _run_scan_bg(user_id: str, scan_id: str, target_ip: str, passive: bool):
                 db_service.save_scan_device(user_id, scan_id, ip, detalle)
             else:
                 detalle = scan_service.deep_scan(ip, user_id, scan_id)
-                # Incrementar conteos parciales
+                # Registrar resumen en consola de auditoría
                 if detalle:
+                    abiertos = detalle.get("puertos_abiertos", [])
+                    bloqueados = detalle.get("puertos_bloqueados", [])
                     vulns = detalle.get("total_vulnerabilidades", 0)
+                    
+                    if abiertos:
+                        db_service.append_scan_log(user_id, scan_id,
+                            f"[OK] {ip} — {len(abiertos)} puerto(s) abierto(s): " +
+                            ", ".join([f"TCP/{p['puerto']} ({p['servicio'].upper()})" for p in abiertos]))
+                    else:
+                        db_service.append_scan_log(user_id, scan_id,
+                            f"[OK] {ip} — Sin servicios expuestos en los 100 puertos principales.")
+
+                    if bloqueados:
+                        db_service.append_scan_log(user_id, scan_id,
+                            f"[BLOQUEADO] {ip} — {len(bloqueados)} puerto(s) restringido(s):")
+                        for p in bloqueados:
+                            db_service.append_scan_log(user_id, scan_id,
+                                f"  TCP/{p['puerto']} ({p.get('servicio','N/A').upper()}) — {p['razon']}")
+
                     if vulns > 0:
+                        db_service.append_scan_log(user_id, scan_id,
+                            f"[ALERTA] {ip} — {vulns} vulnerabilidad(es) CVE detectada(s). Revisa el panel de detalles.")
                         db_service.increment_vulnerabilities(user_id, scan_id, vulns)
-                
+
             print(f"[BFF-BG] GUARDADO: {ip} para user: {user_id} (Pasivo: {passive})")
             db_service.increment_devices(user_id, scan_id, 1)
             return detalle
         except Exception as e:
             print(f"[BFF-BG] Error escaneando {ip}: {e}")
-            db_service.append_scan_log(user_id, scan_id, f"Error escaneando {ip}: {str(e)}")
+            db_service.append_scan_log(user_id, scan_id, f"[ERROR] No se pudo analizar {ip}: {str(e)}")
             return None
 
     dispositivos_validos = [d for d in dispositivos if d.get("ip")]
