@@ -1,6 +1,6 @@
 # SecScan — Network Vulnerability Scanner
 
-A full-stack network security monitoring tool that continuously scans your local network for connected devices, open ports, and known vulnerabilities (CVEs), built as a university thesis project.
+Una herramienta full-stack de monitoreo de seguridad de red que escanea continuamente tu red local en busca de dispositivos conectados, puertos abiertos y vulnerabilidades conocidas (CVEs), desarrollada como proyecto de tesis universitaria.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.111-green?logo=fastapi)
@@ -10,66 +10,66 @@ A full-stack network security monitoring tool that continuously scans your local
 
 ---
 
-## Screenshots
+## Capturas de Pantalla
 
 ![Home](docs/screenshots/00_home.png)
 
-| Dashboard — Scan History | Scan Results — Device List |
+| Dashboard — Historial de Escaneos | Resultados — Lista de Dispositivos |
 |:---:|:---:|
 | ![Dashboard](docs/screenshots/01_dashboard.png) | ![Devices](docs/screenshots/02_devices.png) |
 
-| Audit Console | Vulnerability Report |
+| Consola de Auditoría | Reporte de Vulnerabilidades |
 |:---:|:---:|
 | ![Console](docs/screenshots/03_console.png) | ![Vulns](docs/screenshots/04_vulnerabilities.png) |
 
 ---
 
-## Features
+## Características
 
-- **Network Discovery** — Detects all devices on the local network (IP, MAC, hostname, manufacturer)
-- **Deep Port Scanning** — Scans the top 100 ports per device using Nmap with service version detection
-- **CVE Vulnerability Matching** — Cross-references open services against the NVD database via API
-- **SNMP Integration** — Retrieves extended device information via SNMP protocol
-- **WiFi Scanner** — Lists nearby WiFi networks and allows connecting to them from the UI
-- **Passive Background Daemon** — Continuously monitors the network for new devices in the background
-- **Scan History** — Full audit log of every scan, stored persistently in Firebase Firestore
-- **Audit Console** — Real-time color-coded terminal output showing open/blocked/filtered ports
-- **PDF Export** — Print any scan report as a structured 3-page PDF (summary, devices, vulnerabilities)
-- **Dark Mode UI** — Professional SOC-style dashboard built in React with chart visualizations
+- **Network Discovery** — Detecta todos los dispositivos en la red local (IP, MAC, hostname, fabricante).
+- **Deep Port Scanning** — Escanea los 100 puertos principales por dispositivo usando Nmap con detección de versión de servicios.
+- **CVE Vulnerability Matching** — Cruza los servicios descubiertos con la base de datos NVD a través de su API.
+- **SNMP Integration** — Recupera información extendida de dispositivos compatibles mediante el protocolo SNMP.
+- **WiFi Scanner** — Lista redes WiFi cercanas y permite conectarse a ellas desde la interfaz.
+- **Passive Background Daemon** — Monitorea silenciosamente la red en segundo plano buscando dispositivos nuevos.
+- **Scan History** — Registro completo de auditoría para cada escaneo, almacenado persistentemente en Firebase Firestore.
+- **Audit Console** — Terminal integrada en tiempo real con código de colores para puertos abiertos/bloqueados/filtrados.
+- **PDF Export** — Genera reportes estructurados de 3 páginas en PDF (resumen, dispositivos, vulnerabilidades) listos para imprimir.
+- **Dark Mode UI** — Dashboard profesional estilo SOC construido en React con gráficos y visualizaciones interactivas.
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
+| Capa | Tecnología |
 |---|---|
 | Backend API | Python 3.10+, FastAPI, Uvicorn |
-| Network Scanning | Nmap (python-nmap), SNMP |
-| CVE Database | NVD REST API v2 |
+| Escaneo de Red | Nmap (python-nmap), SNMP |
+| Base de Datos CVE | NVD REST API v2 |
 | Frontend | React 18, Vite, Lucide Icons |
-| Database | Firebase Firestore (cloud) + SQLite (local fallback) |
-| Auth | Firebase Authentication |
+| Base de Datos | Firebase Firestore (cloud) + SQLite (local fallback) |
+| Autenticación | Firebase Authentication |
 
 ---
 
-## Prerequisites
+## Prerrequisitos
 
-- **Python 3.10+** (add to PATH during installation)
+- **Python 3.10+** (asegúrate de agregarlo al PATH durante la instalación)
 - **Node.js v18+**
-- **Nmap** — The app can install it automatically on first run
-- A **Firebase project** with Firestore and Authentication enabled
+- **Nmap** — La aplicación puede instalarlo automáticamente en el primer inicio
+- Un proyecto de **Firebase** con Firestore y Authentication habilitados
 
 ---
 
-## Installation
+## Instalación
 
-### 1. Clone the repository
+### 1. Clonar el repositorio
 ```bash
 git clone https://github.com/MartinQuintanaC/secscan-tesis.git
 cd secscan-tesis
 ```
 
-### 2. Backend setup
+### 2. Configurar el Backend
 ```bash
 cd backend
 python -m venv venv
@@ -83,10 +83,10 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-> **Important:** You need a `firebase_admin.json` credentials file from your Firebase project console.  
-> Place it inside the `backend/` folder. This file is intentionally excluded from the repository.
+> **Importante:** Necesitas un archivo de credenciales `firebase_admin.json` de la consola de tu proyecto Firebase.  
+> Colócalo dentro de la carpeta `backend/`. Este archivo está excluido del repositorio intencionalmente por seguridad.
 
-### 3. Frontend setup
+### 3. Configurar el Frontend
 ```bash
 cd frontend
 npm install
@@ -94,14 +94,14 @@ npm install
 
 ---
 
-## Running the app
+## Ejecutar la aplicación
 
-Use the included batch file on Windows for a one-click start:
+Usa el archivo batch incluido en Windows para iniciar con un solo clic:
 ```
 iniciar_secscan.bat
 ```
 
-Or manually in separate terminals:
+O inicia manualmente en terminales separadas:
 
 **Terminal 1 — Backend:**
 ```bash
@@ -116,55 +116,55 @@ cd frontend
 npm run dev
 ```
 
-Then open [http://localhost:5173](http://localhost:5173) in your browser.
+Luego abre [http://localhost:5173](http://localhost:5173) en tu navegador.
 
 ---
 
-## Project Structure
+## Estructura del Proyecto
 
 ```
 secscan/
 ├── backend/
-│   ├── app.py                  # FastAPI entry point
+│   ├── app.py                  # Punto de entrada de FastAPI
 │   ├── requirements.txt
 │   ├── core/
-│   │   ├── scanner.py          # Nmap scanning engine
-│   │   ├── cve_client.py       # NVD CVE API client
-│   │   ├── firebase_client.py  # Firebase initialization
-│   │   └── local_db.py         # SQLite offline fallback
+│   │   ├── scanner.py          # Motor de escaneo con Nmap
+│   │   ├── cve_client.py       # Cliente API para CVEs de NVD
+│   │   ├── firebase_client.py  # Inicialización de Firebase
+│   │   └── local_db.py         # Fallback offline con SQLite
 │   ├── services/
-│   │   ├── scan_service.py     # Orchestration + passive daemon
-│   │   ├── db_service.py       # Database abstraction layer
-│   │   └── sync_service.py     # Local ↔ Cloud sync
+│   │   ├── scan_service.py     # Orquestador + demonio pasivo
+│   │   ├── db_service.py       # Capa de abstracción de base de datos
+│   │   └── sync_service.py     # Sincronización Local ↔ Cloud
 │   └── api/v1/endpoints/
-│       ├── scans.py            # Scan trigger and history endpoints
-│       ├── devices.py          # Device listing endpoints
-│       ├── wifi.py             # WiFi scan and connect endpoints
-│       └── system.py           # Health check and Nmap installer
+│       ├── scans.py            # Endpoints de inicio e historial de escaneos
+│       ├── devices.py          # Endpoints de listado de dispositivos
+│       ├── wifi.py             # Endpoints de escaneo y conexión WiFi
+│       └── system.py           # Health check e instalador de Nmap
 └── frontend/
     └── src/
-        ├── App.jsx             # Main app + all page components
+        ├── App.jsx             # Aplicación principal + componentes de página
         ├── components/
-        │   └── NetworkTree.jsx # Interactive network topology visualization
+        │   └── NetworkTree.jsx # Visualización interactiva de topología de red
         ├── pages/
         │   ├── ScanHistoryPage.jsx
         │   └── LoginPage.jsx
         └── services/
-            └── api.js          # API client functions
+            └── api.js          # Funciones cliente de la API
 ```
 
 ---
 
-## Notes
+## Notas
 
-- The scanner uses `--top-ports 100` by default for a balance between speed and coverage
-- Up to 4 devices are scanned in parallel using `ThreadPoolExecutor`
-- The passive daemon pauses automatically when an active scan is in progress
-- Blocked/filtered ports are logged in the audit console with the reason reported by Nmap
+- El escáner utiliza `--top-ports 100` por defecto para lograr un equilibrio entre velocidad y cobertura.
+- Se escanean hasta 4 dispositivos en paralelo utilizando `ThreadPoolExecutor`.
+- El demonio pasivo se pausa automáticamente cuando hay un escaneo activo en progreso.
+- Los puertos bloqueados o filtrados se registran en la consola de auditoría con la razón exacta reportada por Nmap.
 
 ---
 
-## Author
+## Autor
 
-**Martín Quintana** — Network Security & Full-Stack Development  
-Thesis project — Computer Science / Systems Engineering
+**Martín Quintana** — Seguridad de Redes & Desarrollo Full-Stack  
+Proyecto de Tesis — Ingeniería de Sistemas / Informática
