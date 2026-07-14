@@ -10,6 +10,20 @@ A full-stack network security monitoring tool that continuously scans your local
 
 ---
 
+## Screenshots
+
+![Home](docs/screenshots/00_home.png)
+
+| Dashboard — Scan History | Scan Results — Device List |
+|:---:|:---:|
+| ![Dashboard](docs/screenshots/01_dashboard.png) | ![Devices](docs/screenshots/02_devices.png) |
+
+| Audit Console | Vulnerability Report |
+|:---:|:---:|
+| ![Console](docs/screenshots/03_console.png) | ![Vulns](docs/screenshots/04_vulnerabilities.png) |
+
+---
+
 ## Features
 
 - **Network Discovery** — Detects all devices on the local network (IP, MAC, hostname, manufacturer)
