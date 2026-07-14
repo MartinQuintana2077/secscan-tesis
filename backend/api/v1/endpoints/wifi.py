@@ -10,7 +10,6 @@ import time
 router = APIRouter()
 
 def scan_wifi_networks():
-    # 1. Intentamos forzar un escaneo físico del hardware usando pywifi para refrescar la caché del SO
     try:
         import pywifi
         wifi = pywifi.PyWiFi()
@@ -24,7 +23,6 @@ def scan_wifi_networks():
 
     result = ""
     try:
-        # Intentamos obtener la información detallada con Bssid para sacar el porcentaje de señal
         result = subprocess.check_output(
             "netsh wlan show networks mode=Bssid",
             shell=True,
@@ -33,14 +31,12 @@ def scan_wifi_networks():
     except Exception as e:
         print(f"Error scanning WiFi with Bssid: {e}")
         try:
-            # Fallback simple
             result = subprocess.check_output(
                 "netsh wlan show networks",
                 shell=True,
                 stderr=subprocess.DEVNULL
             ).decode("cp1252", errors="ignore")
         except Exception:
-            # Fallback si no hay adaptador o servicio wlansvc está desactivado
             return []
 
 
@@ -52,7 +48,6 @@ def scan_wifi_networks():
         if not line:
             continue
         
-        # Match SSID [Número] : [Nombre SSID] con límites de palabra (\b) para evitar matching con BSSID
         ssid_match = re.search(r"\bSSID\s+\d+\s*:\s*(.*)$", line, re.IGNORECASE)
         if ssid_match:
             if current_net and current_net.get("ssid"):
@@ -67,13 +62,11 @@ def scan_wifi_networks():
         if not current_net:
             continue
             
-        # Match Autenticación (Español o Inglés)
         auth_match = re.search(r"(?:Autenticación|Authentication)\s*:\s*(.*)$", line, re.IGNORECASE)
         if auth_match:
             current_net["auth"] = auth_match.group(1).strip()
             continue
             
-        # Match Porcentaje de Señal (Español o Inglés)
         signal_match = re.search(r"(?:Señal|Signal)\s*:\s*(\d+)%", line, re.IGNORECASE)
         if signal_match:
             current_net["signal"] = int(signal_match.group(1))
@@ -82,7 +75,6 @@ def scan_wifi_networks():
     if current_net and current_net.get("ssid"):
         networks.append(current_net)
         
-    # Filtrar SSIDs vacíos
     filtered = [n for n in networks if n.get("ssid")]
     return filtered
 
@@ -90,7 +82,6 @@ def connect_to_wifi(ssid: str, password: str = None):
     temp_filepath = None
     try:
         if not password:
-            # Plantilla XML para redes abiertas sin contraseña
             profile_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
     <name>{ssid}</name>
@@ -113,7 +104,6 @@ def connect_to_wifi(ssid: str, password: str = None):
 </WLANProfile>
 """
         else:
-            # Plantilla XML estándar WPA2-Personal (AES)
             profile_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
     <name>{ssid}</name>
@@ -141,7 +131,6 @@ def connect_to_wifi(ssid: str, password: str = None):
 </WLANProfile>
 """
         
-        # Guardar en un archivo temporal
         temp_dir = tempfile.gettempdir()
         temp_filename = f"secscan_wifi_{uuid.uuid4().hex}.xml"
         temp_filepath = os.path.join(temp_dir, temp_filename)
@@ -149,11 +138,9 @@ def connect_to_wifi(ssid: str, password: str = None):
         with open(temp_filepath, "w", encoding="utf-8") as f:
             f.write(profile_xml)
             
-        # Añadir perfil de red en Windows
         add_profile_cmd = f'netsh wlan add profile filename="{temp_filepath}" user=all'
         subprocess.check_output(add_profile_cmd, shell=True, stderr=subprocess.STDOUT)
         
-        # Conectar a la red
         connect_cmd = f'netsh wlan connect name="{ssid}" ssid="{ssid}"'
         connect_output = subprocess.check_output(connect_cmd, shell=True, stderr=subprocess.STDOUT).decode("cp1252", errors="ignore")
         
@@ -168,7 +155,6 @@ def connect_to_wifi(ssid: str, password: str = None):
         print(f"[WIFI ERROR] Error general: {str(e)}")
         return False, str(e)
     finally:
-        # Asegurarse de eliminar el archivo XML temporal con la contraseña en texto plano
         if temp_filepath and os.path.exists(temp_filepath):
             try:
                 os.remove(temp_filepath)
@@ -178,7 +164,6 @@ def connect_to_wifi(ssid: str, password: str = None):
 @router.get("/scan")
 def get_wifi_networks(user: dict = Depends(get_current_user)):
     networks = scan_wifi_networks()
-    # Si no detectamos redes (desarrollo en máquina virtual/PC escritorio), inyectamos mock data
     if not networks:
         return {
             "status": "ok",

@@ -71,7 +71,6 @@ function Navbar() {
         </div>
       </nav>
 
-      {/* ========== SIDEBAR PANEL ========== */}
       {user && (
         <>
           <div 
@@ -154,11 +153,9 @@ function Home() {
   const [installingNmap, setInstallingNmap] = useState(false);
   const [isPassive, setIsPassive] = useState(false);
 
-  // Estados para selección de red objetivo
   const [targetType, setTargetType] = useState("auto"); // "auto" | "custom"
   const [customTarget, setCustomTarget] = useState("");
 
-  // Estados para WiFi Switcher
   const [switcherTab, setSwitcherTab] = useState("history"); // "history" | "wifi"
   const [wifiNetworks, setWifiNetworks] = useState([]);
   const [scanningWifi, setScanningWifi] = useState(false);
@@ -207,7 +204,6 @@ function Home() {
     }
   }, [switcherTab]);
 
-  // Estados nuevos para Bento Grid
   const [historyList, setHistoryList] = useState([]);
   const [consoleLogs, setConsoleLogs] = useState([
     "[SYS] SecScan CLI v1.2.0 - Motor de Auditoría y Redes Activo.",
@@ -217,14 +213,12 @@ function Home() {
 
   const { getToken } = useAuth();
 
-  // Cargar historial para el Network Switcher
   useEffect(() => {
     const fetchHistory = async () => {
       try {
         const token = await getToken();
         const data = await getScanHistory(token);
         if (data.status === "ok" && data.scans) {
-          // Filtrar y ordenar por fecha para mostrar los más recientes
           const sorted = [...data.scans].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
           setHistoryList(sorted.slice(0, 5)); // Mostrar los últimos 5
         }
@@ -280,15 +274,12 @@ function Home() {
     setDevicesFound(0);
     setScanMsg(passiveScan ? "Inicializando escaneo pasivo indetectable..." : `Conectando con el motor de escaneo activo en ${target}...`);
 
-    // Iniciar consola vacía
     setConsoleLogs([`[SYS] SecScan Daemon - Conectando con el motor backend para auditar ${target}...`]);
 
     try {
       const token = await getToken();
       const scanId = crypto.randomUUID();
 
-      // Disparamos el escaneo pasando el parámetro passive correspondientemente
-      // El backend ahora responderá de inmediato e iniciará en 2do plano
       const scanResult = await triggerN8nScan(target, token, scanId, passiveScan);
       
       if (passiveScan) {
@@ -299,7 +290,6 @@ function Home() {
         setScanMsg("Escaneando tu red. Esperando resultados...");
       }
 
-      // Función para auto-scroll de la terminal
       const scrollToBottom = () => {
         setTimeout(() => {
           const el = document.getElementById("console-logs-container");
@@ -307,7 +297,6 @@ function Home() {
         }, 50);
       };
 
-      // Polling de resultados (ahora empieza más rápido para captar los primeros logs)
       setTimeout(async () => {
         const maxPolls = 150;
         let polls = 0;
@@ -319,7 +308,6 @@ function Home() {
             if (res.status === "ok" && res.details) {
               const { devices_found = 0, total_targets = 1, status, logs = [] } = res.details;
               
-              // Actualizar logs reales en vivo!
               if (logs.length > 0) {
                 setConsoleLogs(logs);
                 scrollToBottom();
@@ -331,7 +319,6 @@ function Home() {
                 setScanMsg(`Auditando puertos... (${devices_found} / ${total_targets || '?'}) dispositivos listos`);
               }
 
-              // Condición de éxito: el backend marca status como 'completed'
               if (status === "completed") {
                 clearInterval(checkResults);
                 setScanning(false);
@@ -441,10 +428,8 @@ function Home() {
         </p>
       </div>
 
-      {/* ==================== BENTO GRID LAYOUT ==================== */}
       <div className="bento-grid">
         
-        {/* PANEL 1: PANEL DE CONTROL DE ESCANEO (LARGE CARD) */}
         <div className="bento-card bento-large-scan slide-up">
           <div className="bento-badge main">🛰️ AUDITORÍA DE RED</div>
           <h2 className="bento-card-title">Lanzar Auditoría Inteligente</h2>
@@ -482,7 +467,6 @@ function Home() {
           )}
         </div>
 
-        {/* PANEL 2: CONSOLA DE COMANDOS EN VIVO (LARGE TERMINAL CARD) */}
         <div className="bento-card bento-terminal slide-up" style={{ animationDelay: "0.05s" }}>
           <div className="bento-badge terminal-badge">⌨️ CONSOLA DE AUDITORÍA</div>
           <div className="terminal-header">
@@ -509,7 +493,6 @@ function Home() {
           </div>
         </div>
 
-        {/* PANEL 3: NETWORK SWITCHER / SELECTOR DE REDES (MEDIUM CARD) */}
         <div className="bento-card bento-switcher slide-up" style={{ animationDelay: "0.1s", overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <div className="bento-badge switcher-badge">🔄 INTERCAMBIADOR DE RED</div>
           <h3 className="bento-card-title-sm">Redes y Escaneos</h3>
@@ -517,7 +500,6 @@ function Home() {
             Alterna entre las redes escaneadas en tu historial o cambia la conexión Wi-Fi física de esta máquina auditora.
           </p>
 
-          {/* Selector de Pestañas */}
           <div className="switcher-tabs" style={{ display: "flex", gap: "8px", margin: "12px 0" }}>
             <button
               type="button"
@@ -590,7 +572,6 @@ function Home() {
               ) : (
                 <>
                   {wifiNetworks.map((net, i) => {
-                    // Calcular nivel de señal: 0-4 barras
                     const sig = net.signal || 0;
                     const bars = sig >= 80 ? 4 : sig >= 60 ? 3 : sig >= 40 ? 2 : sig >= 20 ? 1 : 0;
                     return (
@@ -604,7 +585,6 @@ function Home() {
                           <span className="network-network-icon" style={{ fontSize: '20px' }}>📶</span>
                           <span className="network-item-name">{net.ssid}</span>
                         </div>
-                        {/* Barras de señal */}
                         <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '16px', marginRight: '4px' }}>
                           {[1,2,3,4].map(b => (
                             <div key={b} style={{
@@ -639,7 +619,6 @@ function Home() {
           )}
         </div>
 
-        {/* PANEL 4: ESCANEO PASIVO EXPLICATIVO (MEDIUM CARD) */}
         <div className="bento-card bento-passive-info slide-up" style={{ animationDelay: "0.15s", padding: "20px" }}>
           <div className="bento-badge passive-badge"><EyeOff size={14} className="inline-icon" style={{marginRight: '4px'}} /> ESCANEO PASIVO</div>
           <h3 className="bento-card-title-sm" style={{ fontSize: "15px" }}>¿Cómo funciona?</h3>
@@ -668,7 +647,6 @@ function Home() {
           </ul>
         </div>
 
-        {/* PANEL 5: ESCANEO ESPECÍFICO / TARGET CIDR (SMALL CARD) */}
         <div className="bento-card bento-target slide-up" style={{ animationDelay: "0.2s" }}>
           <div className="bento-badge target-badge"><Crosshair size={18} className="inline-icon" />  OBJETIVO ESPECÍFICO</div>
           <h3 className="bento-card-title-sm">Escanear Objetivo</h3>
@@ -695,7 +673,6 @@ function Home() {
           </div>
         </div>
 
-        {/* PANEL 6: HISTORIAL GENERAL (SMALL CARD) */}
         <div 
           className="history-quicklink slide-up" 
           style={{ animationDelay: "0.25s" }}
@@ -739,7 +716,6 @@ function Home() {
         </div>
       )}
 
-      {/* MODAL PARA CONEXIÓN A RED WIFI */}
       {selectedWifi && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: "400px" }}>
@@ -950,12 +926,10 @@ function Historial() {
            }
         }
       } else {
-        // Fallback al legacy
         const devData = await getDevices(token);
         devs = devData.dispositivos || [];
       }
 
-      // Extraer vulnerabilidades de los devices
       devs.forEach(d => {
         (d.puertos_abiertos || []).forEach(p => {
           (p.vulnerabilidades || []).forEach(v => {
@@ -986,7 +960,6 @@ function Historial() {
   useEffect(() => {
     loadData();
     
-    // Polling si el escaneo an est en procesamiento (deep-scans corriendo en background)
     let intervalId;
     if (isProcessing) {
       intervalId = setInterval(() => {
@@ -1002,7 +975,6 @@ function Historial() {
     if (!loading && location.state?.autoPrint) {
       setTimeout(() => {
         window.print();
-        // Clear state so it doesn't reprint on refresh
         window.history.replaceState({}, '');
       }, 800);
     }
@@ -1070,7 +1042,6 @@ function Historial() {
         </div>
       </div>
 
-      {/* ===== TOGGLE VISTA ===== */}
       <div className="view-toggle">
         <button
           className={`view-toggle-btn${vista === "lista" ? " active" : ""}`}
@@ -1092,7 +1063,6 @@ function Historial() {
         </button>
       </div>
 
-      {/* ===== VISTA CONSOLA ===== */}
       {vista === "consola" && (
         <div className="bento-card bento-terminal slide-up" style={{ marginTop: "20px" }}>
           <div className="bento-badge terminal-badge">⌨️ CONSOLA DE AUDITORÍA</div>
@@ -1120,7 +1090,6 @@ function Historial() {
         </div>
       )}
 
-      {/* ===== VISTA ÁRBOL ===== */}
       {vista === "arbol" && (
         <NetworkTree 
           devices={devices} 
@@ -1135,7 +1104,6 @@ function Historial() {
         />
       )}
 
-      {/* ===== VISTA LISTA (existente) ===== */}
       {vista === "lista" && (
         <>
           <h2 className="print-section-devices" style={{ marginBottom: 20, fontSize: 20 }}>Dispositivos</h2>

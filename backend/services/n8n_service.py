@@ -78,7 +78,6 @@ class N8nService:
             if result.get("status") == "ok":
                 return result
         
-        # MODO DIRECTO: ejecutar directamente sin polling a rutas HTTP internas
         return self._run_discover_direct(target_ip, user_id)
     
     def _trigger_discover_via_n8n(self, target_ip: str, user_id: str) -> dict:
@@ -105,7 +104,6 @@ class N8nService:
         
         IMPORTANTE: Recibe user_id del caller, NO de ningún request.
         """
-        # Ejecutar el escaneo directamente (no llama a rutas HTTP)
         result = self.scan_service.discover(target_ip)
         
         if result.get("error") == "NMAP_MISSING":

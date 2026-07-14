@@ -15,7 +15,6 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Escucha cambios en el estado de autenticación (Login/Logout)
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
@@ -34,7 +33,6 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => signOut(auth);
 
-  // Obtiene el ID Token de Firebase para enviarlo al Backend
   const getToken = useCallback(async () => {
     if (!auth.currentUser) return null;
     return await auth.currentUser.getIdToken();

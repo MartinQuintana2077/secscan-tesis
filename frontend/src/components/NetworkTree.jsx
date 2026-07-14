@@ -35,35 +35,25 @@ export function getDeviceIcon(d, routerIp = null) {
   const f = (d.fabricante || "").toLowerCase();
   const h = (d.hostname || "").toLowerCase();
   
-  // Routers / APs / Switches
   if (f.includes("cisco") || f.includes("tp-link") || f.includes("netgear") || f.includes("ubiquiti") || f.includes("mikrotik") || f.includes("d-link") || f.includes("aruba") || h.includes("router") || h.includes("gateway") || h.includes("ap")) return "📡";
   
-  // Smartphones & Tablets
   if (f.includes("apple") || h.includes("iphone") || h.includes("ipad")) return "🍎";
   if (f.includes("samsung") || f.includes("motorola") || f.includes("huawei") || f.includes("xiaomi") || f.includes("oppo") || f.includes("vivo") || f.includes("oneplus") || h.includes("android") || h.includes("phone")) return "📱";
   
-  // TVs & Media Players
   if (f.includes("roku") || f.includes("lg electronics") || f.includes("tcl") || f.includes("hisense") || h.includes("tv") || h.includes("chromecast") || h.includes("fire") || h.includes("cast")) return "📺";
   
-  // Consolas de Videojuegos
   if (f.includes("nintendo") || f.includes("sony interactive") || h.includes("xbox") || h.includes("playstation") || h.includes("switch")) return "🎮";
   
-  // Cámaras / Seguridad
   if (f.includes("hikvision") || f.includes("dahua") || f.includes("axis") || h.includes("camera") || h.includes("cam") || h.includes("dvr") || h.includes("nvr")) return "📷";
   
-  // Impresoras
   if (f.includes("hewlett") || f.includes("hp") || f.includes("epson") || f.includes("canon") || f.includes("brother") || h.includes("print")) return "🖨️";
   
-  // IoT / Domótica
   if (f.includes("tuya") || f.includes("sonoff") || f.includes("philips") || h.includes("smart") || h.includes("iot") || h.includes("home")) return "💡";
   
-  // Servidores / NAS
   if (f.includes("synology") || f.includes("qnap") || h.includes("server") || h.includes("srv") || h.includes("nas")) return "🗄️";
   
-  // Laptops / PCs (Fallback)
   if (f.includes("dell") || f.includes("lenovo") || f.includes("asus") || f.includes("acer") || f.includes("msi") || h.includes("macbook") || h.includes("pc") || h.includes("desktop") || h.includes("laptop")) return "💻";
   
-  // Default Desconocido
   return "💻";
 }
 
@@ -78,15 +68,11 @@ function buildTree(devices, topology) {
     bySubnet[p].push(d);
   });
 
-  // Si tenemos topología real del backend (Traceroute)
   if (topology && topology.hops_privados) {
     const hops = topology.hops_privados;
-    // El último hop privado es el gateway principal
     const mainHop = hops[hops.length - 1];
-    // Los anteriores son extensores
     const extHops = hops.slice(0, -1);
     
-    // Asignar prefijos a los hops
     const mainPrefix = mainHop ? getSubnetPrefix(mainHop.ip) : null;
     const routerIp = topology.router_principal_ip || mainHop?.ip || `${mainPrefix}.1`;
 
@@ -115,7 +101,6 @@ function buildTree(devices, topology) {
       };
     });
 
-    // Agrupar hops invisibles si hay 3 o más
     const extensors = [];
     let invisibleCount = 0;
     for (let i = 0; i < extensorsRaw.length; i++) {
@@ -145,7 +130,6 @@ function buildTree(devices, topology) {
       }
     }
 
-    // Subredes huérfanas (descubiertas por Nmap pero sin hop de traceroute)
     const knownPrefixes = [mainPrefix, ...extensorsRaw.map(e => e.prefix)].filter(Boolean);
     const orphanSubnets = Object.entries(bySubnet)
       .filter(([prefix]) => !knownPrefixes.includes(prefix))
@@ -163,7 +147,6 @@ function buildTree(devices, topology) {
     };
   }
 
-  // Fallback a la heurística antigua si no hay topología
   const subnets = Object.entries(bySubnet)
     .map(([prefix, devs]) => ({
       prefix,
@@ -336,7 +319,6 @@ function DeviceCard({ device, onVulnClick, routerIp }) {
         </div>
       </div>
 
-      {/* Puertos expandibles */}
       {open && hasPorts && (
         <div className="nt-ports-popup">
           {device.puertos_abiertos.map((p, i) => {
@@ -445,7 +427,6 @@ export default function NetworkTree({ devices, topology, onVulnClick }) {
   return (
     <div className="nt-root">
       
-      {/* Alertas Toggle */}
       {warnings.length > 0 && (
         <div style={{ position: "absolute", top: 60, left: 20, zIndex: 10 }}>
           <button 
@@ -467,7 +448,6 @@ export default function NetworkTree({ devices, topology, onVulnClick }) {
         </div>
       )}
 
-      {/* Leyenda */}
       <div className="nt-legend">
         {[
           { color: "#00d4ff", label: "Internet" },
@@ -487,7 +467,6 @@ export default function NetworkTree({ devices, topology, onVulnClick }) {
         </span>
       </div>
 
-      {/* Viewport pan/zoom */}
       <div
         className="nt-viewport"
         ref={viewportRef}
@@ -500,7 +479,6 @@ export default function NetworkTree({ devices, topology, onVulnClick }) {
         <div className="nt-canvas" style={{ transform: `scale(${zoom})`, transformOrigin: "top center" }}>
           <ul className="nt-children nt-children--root">
 
-            {/* INTERNET → GATEWAY */}
             <OrgBranch
               card={
                 <div className="nt-card nt-card--internet">
@@ -523,7 +501,6 @@ export default function NetworkTree({ devices, topology, onVulnClick }) {
                   />
                 }
               >
-                {/* Dispositivos directos en la red principal (Agrupados de a 5) */}
                 {chunkArray(main.devices, 5).map((chunk, i) => (
                   <OrgBranch key={`main-chunk-${i}`} card={
                     <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: '16px', maxWidth: '600px' }}>
@@ -532,7 +509,6 @@ export default function NetworkTree({ devices, topology, onVulnClick }) {
                   } />
                 ))}
 
-                {/* Extensores con sus dispositivos */}
                 {hasExtensors && extensors.map((ext, i) => (
                   <OrgBranch
                     key={ext.prefix}
@@ -552,7 +528,6 @@ export default function NetworkTree({ devices, topology, onVulnClick }) {
                       )
                     }
                   >
-                    {/* Dispositivos del extensor (Agrupados de a 5) */}
                     {chunkArray(ext.devices, 5).map((chunk, j) => (
                       <OrgBranch key={`ext-chunk-${j}`} card={
                         <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: '16px', maxWidth: '600px' }}>
@@ -569,7 +544,6 @@ export default function NetworkTree({ devices, topology, onVulnClick }) {
         </div>
       </div>
 
-      {/* Controles de zoom */}
       <div className="nt-controls">
         <button className="nt-ctrl-btn" onClick={() => setZoom(z => Math.min(z * 1.15, 2.5))} title="Zoom +">＋</button>
         <span className="nt-zoom-label">{Math.round(zoom * 100)}%</span>

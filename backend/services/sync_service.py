@@ -21,20 +21,17 @@ def start_sync_daemon():
 
 def _run_sync_worker():
     """Ciclo infinito en segundo plano para procesar la cola de sincronización."""
-    # Esperar a que la app inicie
     time.sleep(5)
     
     local_db = LocalDBManager()
     
     while True:
         try:
-            # Obtener el elemento más antiguo de la cola
             rows = local_db.execute_read(
                 "SELECT id, action_type, user_id, payload_json FROM offline_queue ORDER BY id ASC LIMIT 1"
             )
             
             if not rows:
-                # No hay tareas pendientes, dormir 15 segundos
                 time.sleep(15)
                 continue
                 
@@ -46,21 +43,16 @@ def _run_sync_worker():
             
             print(f"[SyncDaemon] Procesando tarea offline {task_id} de tipo '{action_type}' para usuario '{user_id}'...")
             
-            # Importar db_service aquí para evitar importaciones circulares
             from services.db_service import DatabaseService
             db_service = DatabaseService()
             
-            # Intentar ejecutar la acción en Firebase
             success = _execute_firebase_action(db_service, action_type, user_id, payload)
             
             if success:
-                # Éxito: eliminar de la cola local
                 local_db.execute_write("DELETE FROM offline_queue WHERE id = ?", (task_id,))
                 print(f"[SyncDaemon] ✅ Tarea {task_id} sincronizada correctamente en Firebase.")
-                # Un pequeño sleep para no saturar si hay muchas tareas
                 time.sleep(0.5)
             else:
-                # Error de red/conexión: detener el vaciado de cola y volver a intentar en 15 segundos
                 print(f"[SyncDaemon] ⏰ Conexión a Firebase offline. Reintentando en 15s...")
                 time.sleep(15)
                 
@@ -97,7 +89,6 @@ def _execute_firebase_action(db_service, action, user_id, payload) -> bool:
         return True
     except Exception as e:
         err_msg = str(e).lower()
-        # Lista de palabras clave que típicamente representan cortes de red o problemas de conexión
         is_connection_error = any(kw in err_msg for kw in [
             "connection", "offline", "network", "timeout", "dns", "unreachable", "timed out", 
             "host", "socket", "grpc", "transport", "failed to connect", "server_endpoint"
@@ -107,7 +98,5 @@ def _execute_firebase_action(db_service, action, user_id, payload) -> bool:
             print(f"[SyncDaemon] Error de conexión detectado: {e}")
             return False
         else:
-            # Si es un error lógico (permisos, sintaxis, etc.), no tiene sentido
-            # bloquear la cola para siempre. Lo reportamos y devolvemos True para descartar.
             print(f"[SyncDaemon ERROR CRÍTICO] Error de datos irrecuperable en Firebase: {e}. Descartando tarea de la cola.")
             return True

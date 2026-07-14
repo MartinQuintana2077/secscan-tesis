@@ -10,7 +10,6 @@ export default function ScanHistoryPage() {
   const [scans, setScans] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // Date filter state
   const [dateFilter, setDateFilter] = useState("week"); // 'week', 'all', 'custom'
   const [customDate, setCustomDate] = useState("");
 
@@ -20,7 +19,6 @@ export default function ScanHistoryPage() {
         const token = await getToken();
         const data = await getScanHistory(token);
         if (data.status === "ok") {
-          // Sort by timestamp descending
           const sorted = (data.scans || []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
           setScans(sorted);
         }
@@ -51,7 +49,6 @@ export default function ScanHistoryPage() {
       }
       
       if (dateFilter === "custom" && customDate) {
-        // match YYYY-MM-DD
         const sDateStr = scanDate.toISOString().split("T")[0];
         return sDateStr === customDate;
       }
@@ -77,7 +74,6 @@ export default function ScanHistoryPage() {
         <p>Historial de análisis y descubrimientos de red.</p>
       </div>
 
-      {/* CONTROLES DE FILTRO */}
       <div className="history-filters" style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '30px', background: 'var(--bg-surface)', padding: '15px', borderRadius: '12px', border: '1px solid var(--border-subtle)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Calendar size={18} className="inline-icon" color="var(--text-secondary)" />

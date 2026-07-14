@@ -11,14 +11,11 @@ const firebaseConfig = {
   measurementId: "G-73F972TZ1X"
 };
 
-// Inicializamos la app de Firebase
 const app = initializeApp(firebaseConfig);
 
-// Exportamos Auth y el Proveedor de Google
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// Forzamos a que Google pregunte qué cuenta usar en cada inicio de sesión
 googleProvider.setCustomParameters({
   prompt: 'select_account'
 });

@@ -11,7 +11,6 @@ router = APIRouter()
 scan_service = ScanService()
 db_service = DatabaseService()
 
-# API Key interna para proteger /internal/*
 INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY", "secscan-internal-key-2024")
 
 def verify_internal_key(x_internal_key: str = Header(None)):
@@ -74,7 +73,6 @@ def _run_scan_bg(user_id: str, scan_id: str, target_ip: str, passive: bool):
     print(f"[BFF-BG] Dispositivos encontrados: {len(dispositivos)}")
     db_service.append_scan_log(user_id, scan_id, f"Fase de descubrimiento completada. {len(dispositivos)} dispositivos detectados en la red.")
     
-    # Actualizar total de targets
     db_service.update_scan_metadata(user_id, scan_id, {"total_targets": len(dispositivos)})
     
     escaneados = 0
@@ -110,7 +108,6 @@ def _run_scan_bg(user_id: str, scan_id: str, target_ip: str, passive: bool):
                 db_service.save_scan_device(user_id, scan_id, ip, detalle)
             else:
                 detalle = scan_service.deep_scan(ip, user_id, scan_id)
-                # Registrar resumen en consola de auditoría
                 if detalle:
                     abiertos = detalle.get("puertos_abiertos", [])
                     bloqueados = detalle.get("puertos_bloqueados", [])
@@ -173,7 +170,6 @@ def trigger_scan(request: ScanRequest, background_tasks: BackgroundTasks, author
     - Delega tarea a BackgroundTasks para emitir logs en vivo
     """
     import socket as _socket
-    # ── Chequeo rápido de conexión a internet (1 segundo de timeout) ──
     try:
         _socket.create_connection(("8.8.8.8", 53), timeout=1.0)
     except OSError:
@@ -231,7 +227,6 @@ def trigger_scan(request: ScanRequest, background_tasks: BackgroundTasks, author
             "mensaje": "Workflow n8n iniciado"
         }
     
-    # FALLBACK DIRECTO: Tarea asíncrona
     db_service.update_scan_metadata(user_id, scan_id, {
         "devices_found": 0,
         "vulnerabilidades_found": 0,
